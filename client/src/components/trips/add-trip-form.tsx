@@ -62,11 +62,18 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: destinations } = useQuery({
+  // Use proper typing for destinations
+  const { data: destinations } = useQuery<Array<{ 
+    id: number; 
+    name: string; 
+    country: string;
+    imageUrl?: string;
+  }>>({
     queryKey: ['/api/destinations'],
   });
 
-  const { data: dbUser } = useQuery({
+  // Use proper typing for dbUser
+  const { data: dbUser } = useQuery<{ id: number; uid: string; username: string; email: string }>({
     queryKey: [`/api/users/uid/${user?.uid}`],
     enabled: !!user?.uid,
   });
@@ -78,6 +85,15 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
       destinationId: 0,
       startDate: new Date(),
       endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+      description: "",
+      imageUrl: "",
+    },
+    // Ensure we use proper empty values for optional fields
+    values: {
+      title: "",
+      destinationId: 0,
+      startDate: new Date(),
+      endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       description: "",
       imageUrl: "",
     },
@@ -97,9 +113,7 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
     
     try {
       // Get destination info for the image URL if needed
-      const selectedDestination = Array.isArray(destinations) 
-        ? destinations.find((dest: any) => dest.id === data.destinationId)
-        : null;
+      const selectedDestination = destinations?.find(dest => dest.id === data.destinationId);
 
       // Create the server payload
       const payload = {
@@ -176,7 +190,7 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  {Array.isArray(destinations) && destinations.map((destination: any) => (
+                  {destinations?.map((destination) => (
                     <SelectItem 
                       key={destination.id} 
                       value={destination.id.toString()}
@@ -285,7 +299,6 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
                   placeholder="Describe your trip plans..." 
                   className="min-h-[100px]" 
                   {...field} 
-                  value={field.value || ""} 
                 />
               </FormControl>
               <FormMessage />
@@ -303,7 +316,6 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
                 <Input 
                   placeholder="https://example.com/image.jpg" 
                   {...field} 
-                  value={field.value || ""} 
                 />
               </FormControl>
               <FormMessage />
