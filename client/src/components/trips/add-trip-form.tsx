@@ -95,7 +95,7 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
     setIsSubmitting(true);
     
     const selectedDestination = destinations?.find(
-      (dest: any) => dest.id === parseInt(data.destinationId.toString())
+      (dest: any) => dest.id === data.destinationId
     );
 
     try {
@@ -104,7 +104,7 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
         userId: dbUser.id,
         startDate: data.startDate.toISOString(),
         endDate: data.endDate.toISOString(),
-        destinationId: parseInt(data.destinationId.toString()),
+        destinationId: data.destinationId,
         imageUrl: data.imageUrl || selectedDestination?.imageUrl || "",
       };
 
@@ -157,7 +157,7 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
             <FormItem>
               <FormLabel>Destination</FormLabel>
               <Select 
-                onValueChange={field.onChange} 
+                onValueChange={(value) => field.onChange(parseInt(value))} 
                 defaultValue={field.value.toString()}
               >
                 <FormControl>
