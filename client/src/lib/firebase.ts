@@ -14,11 +14,11 @@ import { getStorage } from "firebase/storage";
 
 // Firebase configuration
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: `${import.meta.env.VITE_FIREBASE_PROJECT_ID}.firebaseapp.com`,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: `${import.meta.env.VITE_FIREBASE_PROJECT_ID}.firebasestorage.app`,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyAEQ4lEpA6bRiQxUxqNqO1igM_MhC8ivII",
+  authDomain: `${import.meta.env.VITE_FIREBASE_PROJECT_ID || "travel-d6500"}.firebaseapp.com`,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "travel-d6500",
+  storageBucket: `${import.meta.env.VITE_FIREBASE_PROJECT_ID || "travel-d6500"}.firebasestorage.app`,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:542472007789:web:4a8a41e444bea53822cf64"
 };
 
 // Initialize Firebase
