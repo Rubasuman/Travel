@@ -32,12 +32,16 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { insertTripSchema } from "@shared/schema";
 import { useAuthContext } from "@/context/auth-context";
 
-const formSchema = insertTripSchema.extend({
+// Define our own schema based on the backend requirements
+const formSchema = z.object({
+  title: z.string().min(1, "Title is required"),
+  destinationId: z.number().min(1, "Please select a destination"),
   startDate: z.date(),
   endDate: z.date(),
+  description: z.string().optional(),
+  imageUrl: z.string().optional(),
 }).refine(
   (data) => data.endDate >= data.startDate,
   {
@@ -70,15 +74,12 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      userId: 0,
-      destinationId: 0,
       title: "",
-      description: "",
+      destinationId: 0,
       startDate: new Date(),
       endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+      description: "",
       imageUrl: "",
-      activities: 0,
-      isFavorite: false,
     },
   });
 
@@ -94,24 +95,28 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
 
     setIsSubmitting(true);
     
-    const selectedDestination = destinations?.find(
-      (dest: any) => dest.id === data.destinationId
-    );
-
     try {
-      // Ensure all data is in the correct format according to the schema
-    const payload = {
+      // Get destination info for the image URL if needed
+      const selectedDestination = Array.isArray(destinations) 
+        ? destinations.find((dest: any) => dest.id === data.destinationId)
+        : null;
+
+      // Create the server payload
+      const payload = {
         userId: dbUser.id,
         destinationId: data.destinationId,
         title: data.title,
         description: data.description || "",
         startDate: data.startDate.toISOString(),
         endDate: data.endDate.toISOString(),
-        imageUrl: data.imageUrl || selectedDestination?.imageUrl || "",
-        activities: data.activities || 0,
-        isFavorite: data.isFavorite || false
+        imageUrl: data.imageUrl || (selectedDestination ? selectedDestination.imageUrl : ""),
+        activities: 0,
+        isFavorite: false
       };
 
+      console.log("Submitting trip payload:", payload);
+      
+      // Call the API
       await apiRequest("POST", "/api/trips", payload);
       
       toast({
@@ -127,6 +132,7 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
       
       form.reset();
     } catch (error) {
+      console.error("Error creating trip:", error);
       toast({
         title: "Error",
         description: "Failed to create trip. Please try again.",
@@ -162,7 +168,7 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
               <FormLabel>Destination</FormLabel>
               <Select 
                 onValueChange={(value) => field.onChange(parseInt(value))} 
-                defaultValue={field.value.toString()}
+                defaultValue={field.value > 0 ? field.value.toString() : undefined}
               >
                 <FormControl>
                   <SelectTrigger>
@@ -170,7 +176,7 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  {destinations?.map((destination: any) => (
+                  {Array.isArray(destinations) && destinations.map((destination: any) => (
                     <SelectItem 
                       key={destination.id} 
                       value={destination.id.toString()}
@@ -196,6 +202,7 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
                   <PopoverTrigger asChild>
                     <FormControl>
                       <Button
+                        type="button"
                         variant={"outline"}
                         className={cn(
                           "pl-3 text-left font-normal",
@@ -235,6 +242,7 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
                   <PopoverTrigger asChild>
                     <FormControl>
                       <Button
+                        type="button"
                         variant={"outline"}
                         className={cn(
                           "pl-3 text-left font-normal",
@@ -277,6 +285,7 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
                   placeholder="Describe your trip plans..." 
                   className="min-h-[100px]" 
                   {...field} 
+                  value={field.value || ""} 
                 />
               </FormControl>
               <FormMessage />
@@ -294,6 +303,7 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
                 <Input 
                   placeholder="https://example.com/image.jpg" 
                   {...field} 
+                  value={field.value || ""} 
                 />
               </FormControl>
               <FormMessage />
