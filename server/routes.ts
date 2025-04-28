@@ -96,7 +96,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/trips", async (req: Request, res: Response) => {
     try {
       console.log("Trip creation payload:", req.body);
-      const tripPayload = insertTripSchema.parse(req.body);
+      
+      // Prepare data by converting date strings to Date objects
+      const tripData = {
+        ...req.body,
+        startDate: req.body.startDate ? new Date(req.body.startDate) : undefined,
+        endDate: req.body.endDate ? new Date(req.body.endDate) : undefined
+      };
+      
+      const tripPayload = insertTripSchema.parse(tripData);
       console.log("Validated trip payload:", tripPayload);
       const trip = await storage.createTrip(tripPayload);
       res.status(201).json(trip);
@@ -113,7 +121,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/trips/:id", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
-      const updateData = req.body;
+      
+      // Convert date strings to Date objects if present
+      const updateData = {
+        ...req.body,
+        startDate: req.body.startDate ? new Date(req.body.startDate) : undefined,
+        endDate: req.body.endDate ? new Date(req.body.endDate) : undefined
+      };
       
       const updatedTrip = await storage.updateTrip(id, updateData);
       
@@ -123,6 +137,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.status(200).json(updatedTrip);
     } catch (error) {
+      console.error("Trip update error:", error);
       res.status(500).json({ message: "Failed to update trip" });
     }
   });
