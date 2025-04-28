@@ -95,11 +95,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   app.post("/api/trips", async (req: Request, res: Response) => {
     try {
+      console.log("Trip creation payload:", req.body);
       const tripPayload = insertTripSchema.parse(req.body);
+      console.log("Validated trip payload:", tripPayload);
       const trip = await storage.createTrip(tripPayload);
       res.status(201).json(trip);
     } catch (error) {
+      console.error("Trip creation error:", error);
       if (error instanceof z.ZodError) {
+        console.error("Zod validation errors:", error.errors);
         return res.status(400).json({ message: "Invalid trip data", errors: error.errors });
       }
       res.status(500).json({ message: "Failed to create trip" });

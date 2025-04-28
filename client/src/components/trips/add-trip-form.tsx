@@ -99,13 +99,17 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
     );
 
     try {
-      const payload = {
-        ...data,
+      // Ensure all data is in the correct format according to the schema
+    const payload = {
         userId: dbUser.id,
+        destinationId: data.destinationId,
+        title: data.title,
+        description: data.description || "",
         startDate: data.startDate.toISOString(),
         endDate: data.endDate.toISOString(),
-        destinationId: data.destinationId,
         imageUrl: data.imageUrl || selectedDestination?.imageUrl || "",
+        activities: data.activities || 0,
+        isFavorite: data.isFavorite || false
       };
 
       await apiRequest("POST", "/api/trips", payload);
