@@ -102,7 +102,7 @@ export default function UploadPhotoForm({ userId, trips, onSuccess }: UploadPhot
       // Save the photo details to the database
       await apiRequest("POST", "/api/photos", {
         userId,
-        tripId: data.tripId ? parseInt(data.tripId) : null,
+        tripId: data.tripId && data.tripId !== "none" ? parseInt(data.tripId) : null,
         imageUrl,
         caption: data.caption,
         uploadedAt: new Date().toISOString(),
@@ -212,7 +212,7 @@ export default function UploadPhotoForm({ userId, trips, onSuccess }: UploadPhot
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  <SelectItem value="">None</SelectItem>
+                  <SelectItem value="none">None</SelectItem>
                   {trips.map((trip) => (
                     <SelectItem key={trip.id} value={trip.id.toString()}>
                       {trip.title}
