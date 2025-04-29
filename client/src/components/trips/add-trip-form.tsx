@@ -34,17 +34,17 @@ import { CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { insertTripSchema } from "@shared/schema";
 import { useAuthContext } from "@/context/auth-context";
+import { createDocument } from "@/lib/firebase";
 
-const formSchema = insertTripSchema.extend({
-  startDate: z.date(),
-  endDate: z.date(),
-}).refine(
-  (data) => data.endDate >= data.startDate,
-  {
+const formSchema = insertTripSchema
+  .extend({
+    startDate: z.date(),
+    endDate: z.date(),
+  })
+  .refine((data) => data.endDate >= data.startDate, {
     message: "End date must be after start date",
     path: ["endDate"],
-  }
-);
+  });
 
 type FormValues = z.infer<typeof formSchema>;
 
@@ -58,8 +58,8 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: destinations } = useQuery({
-    queryKey: ['/api/destinations'],
+  const { data: destinations = [] } = useQuery({
+    queryKey: ["/api/destinations"],
   });
 
   const { data: dbUser } = useQuery({
@@ -83,7 +83,7 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
   });
 
   const onSubmit = async (data: FormValues) => {
-    if (!dbUser) {
+    if (!dbUser || !user) {
       toast({
         title: "Error",
         description: "You must be logged in to create a trip",
@@ -93,36 +93,57 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
     }
 
     setIsSubmitting(true);
-    
-    const selectedDestination = destinations?.find(
-      (dest: any) => dest.id === parseInt(data.destinationId.toString())
+
+    const selectedDestination = destinations.find(
+      (dest: any) => dest.id === parseInt(data.destinationId.toString()),
     );
 
     try {
       const payload = {
         ...data,
-        userId: dbUser.id,
+        userId: dbUser.id as number,
         startDate: data.startDate.toISOString(),
         endDate: data.endDate.toISOString(),
         destinationId: parseInt(data.destinationId.toString()),
-        imageUrl: data.imageUrl || selectedDestination?.imageUrl || "",
+        imageUrl: data.imageUrl || (selectedDestination?.imageUrl as string) || "",
       };
 
-      await apiRequest("POST", "/api/trips", payload);
+      // Save to server backend storage
+      const response: any = await apiRequest("POST", "/api/trips", payload);
       
+      // Save the same data to Firebase Firestore with additional metadata
+      const firestoreData = {
+        ...payload,
+        // Add Firebase specific fields
+        uid: user.uid,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        destination: {
+          name: selectedDestination?.name || "Unknown",
+          country: selectedDestination?.country || "Unknown",
+          imageUrl: selectedDestination?.imageUrl || "",
+        }
+      };
+      
+      // Use the trip ID from the server response as the document ID in Firestore
+      await createDocument('trips', response.id.toString(), firestoreData);
+
       toast({
         title: "Trip created!",
-        description: "Your trip has been successfully created.",
+        description: "Your trip has been successfully created in both local storage and Firebase.",
       });
-      
-      queryClient.invalidateQueries({ queryKey: [`/api/users/${dbUser.id}/trips`] });
-      
+
+      queryClient.invalidateQueries({
+        queryKey: [`/api/users/${dbUser.id as number}/trips`],
+      });
+
       if (onSuccess) {
         onSuccess();
       }
-      
+
       form.reset();
     } catch (error) {
+      console.error("Error creating trip:", error);
       toast({
         title: "Error",
         description: "Failed to create trip. Please try again.",
@@ -156,9 +177,11 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
           render={({ field }) => (
             <FormItem>
               <FormLabel>Destination</FormLabel>
-              <Select 
-                onValueChange={field.onChange} 
-                defaultValue={field.value.toString()}
+              <Select
+                onValueChange={(value) => field.onChange(parseInt(value))}
+                defaultValue={
+                  field.value > 0 ? field.value.toString() : undefined
+                }
               >
                 <FormControl>
                   <SelectTrigger>
@@ -166,14 +189,15 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  {destinations?.map((destination: any) => (
-                    <SelectItem 
-                      key={destination.id} 
-                      value={destination.id.toString()}
-                    >
-                      {destination.name}, {destination.country}
-                    </SelectItem>
-                  ))}
+                  {Array.isArray(destinations) &&
+                    destinations.map((destination: any) => (
+                      <SelectItem
+                        key={destination.id}
+                        value={destination.id.toString()}
+                      >
+                        {destination.name}, {destination.country}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
               <FormMessage />
@@ -195,7 +219,7 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
                         variant={"outline"}
                         className={cn(
                           "pl-3 text-left font-normal",
-                          !field.value && "text-muted-foreground"
+                          !field.value && "text-muted-foreground",
                         )}
                       >
                         {field.value ? (
@@ -234,7 +258,7 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
                         variant={"outline"}
                         className={cn(
                           "pl-3 text-left font-normal",
-                          !field.value && "text-muted-foreground"
+                          !field.value && "text-muted-foreground",
                         )}
                       >
                         {field.value ? (
@@ -269,10 +293,10 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
             <FormItem>
               <FormLabel>Description</FormLabel>
               <FormControl>
-                <Textarea 
-                  placeholder="Describe your trip plans..." 
-                  className="min-h-[100px]" 
-                  {...field} 
+                <Textarea
+                  placeholder="Describe your trip plans..."
+                  className="min-h-[100px]"
+                  {...field}
                 />
               </FormControl>
               <FormMessage />
@@ -287,21 +311,14 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
             <FormItem>
               <FormLabel>Image URL (optional)</FormLabel>
               <FormControl>
-                <Input 
-                  placeholder="https://example.com/image.jpg" 
-                  {...field} 
-                />
+                <Input placeholder="https://example.com/image.jpg" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
 
-        <Button 
-          type="submit" 
-          className="w-full" 
-          disabled={isSubmitting}
-        >
+        <Button type="submit" className="w-full" disabled={isSubmitting}>
           {isSubmitting ? "Creating Trip..." : "Create Trip"}
         </Button>
       </form>
