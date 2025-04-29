@@ -36,6 +36,22 @@ import { insertTripSchema } from "@shared/schema";
 import { useAuthContext } from "@/context/auth-context";
 import { createDocument } from "@/lib/firebase";
 
+// Define interfaces for API data
+interface Destination {
+  id: number;
+  name: string;
+  country: string;
+  description?: string;
+  imageUrl?: string;
+}
+
+interface DbUser {
+  id: number;
+  uid: string;
+  username: string;
+  email: string;
+}
+
 const formSchema = insertTripSchema
   .extend({
     startDate: z.date(),
@@ -58,11 +74,11 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: destinations = [] } = useQuery({
+  const { data: destinations = [] } = useQuery<Destination[]>({
     queryKey: ["/api/destinations"],
   });
 
-  const { data: dbUser } = useQuery({
+  const { data: dbUser } = useQuery<DbUser>({
     queryKey: [`/api/users/uid/${user?.uid}`],
     enabled: !!user?.uid,
   });
@@ -95,21 +111,21 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
     setIsSubmitting(true);
 
     const selectedDestination = destinations.find(
-      (dest: any) => dest.id === parseInt(data.destinationId.toString()),
+      (dest) => dest.id === parseInt(data.destinationId.toString())
     );
 
     try {
       const payload = {
         ...data,
-        userId: dbUser.id as number,
+        userId: dbUser.id,
         startDate: data.startDate.toISOString(),
         endDate: data.endDate.toISOString(),
         destinationId: parseInt(data.destinationId.toString()),
-        imageUrl: data.imageUrl || (selectedDestination?.imageUrl as string) || "",
+        imageUrl: data.imageUrl || selectedDestination?.imageUrl || "",
       };
 
       // Save to server backend storage
-      const response: any = await apiRequest("POST", "/api/trips", payload);
+      const response = await apiRequest("POST", "/api/trips", payload);
       
       // Save the same data to Firebase Firestore with additional metadata
       const firestoreData = {
@@ -126,22 +142,26 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
       };
       
       // Use the trip ID from the server response as the document ID in Firestore
-      await createDocument('trips', response.id.toString(), firestoreData);
+      if (response && typeof response === 'object' && 'id' in response) {
+        await createDocument('trips', String(response.id), firestoreData);
 
-      toast({
-        title: "Trip created!",
-        description: "Your trip has been successfully created in both local storage and Firebase.",
-      });
+        toast({
+          title: "Trip created!",
+          description: "Your trip has been successfully created in both local storage and Firebase.",
+        });
 
-      queryClient.invalidateQueries({
-        queryKey: [`/api/users/${dbUser.id as number}/trips`],
-      });
+        queryClient.invalidateQueries({
+          queryKey: [`/api/users/${dbUser.id}/trips`],
+        });
 
-      if (onSuccess) {
-        onSuccess();
+        if (onSuccess) {
+          onSuccess();
+        }
+
+        form.reset();
+      } else {
+        throw new Error("Invalid response format from server");
       }
-
-      form.reset();
     } catch (error) {
       console.error("Error creating trip:", error);
       toast({
@@ -189,15 +209,14 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  {Array.isArray(destinations) &&
-                    destinations.map((destination: any) => (
-                      <SelectItem
-                        key={destination.id}
-                        value={destination.id.toString()}
-                      >
-                        {destination.name}, {destination.country}
-                      </SelectItem>
-                    ))}
+                  {destinations.map((destination) => (
+                    <SelectItem
+                      key={destination.id}
+                      value={destination.id.toString()}
+                    >
+                      {destination.name}, {destination.country}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               <FormMessage />
@@ -219,7 +238,7 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
                         variant={"outline"}
                         className={cn(
                           "pl-3 text-left font-normal",
-                          !field.value && "text-muted-foreground",
+                          !field.value && "text-muted-foreground"
                         )}
                       >
                         {field.value ? (
@@ -258,7 +277,7 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
                         variant={"outline"}
                         className={cn(
                           "pl-3 text-left font-normal",
-                          !field.value && "text-muted-foreground",
+                          !field.value && "text-muted-foreground"
                         )}
                       >
                         {field.value ? (
