@@ -1,30 +1,24 @@
 import { initializeApp } from "firebase/app";
-import { 
-  getAuth, 
-  signInWithPopup, 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  signOut, 
-  GoogleAuthProvider, 
-  FacebookAuthProvider, 
-  onAuthStateChanged, 
-  type User 
-} from "firebase/auth";
+import { getAuth, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, 
+  signOut, GoogleAuthProvider, FacebookAuthProvider, 
+  onAuthStateChanged, type User } from "firebase/auth";
 import { getStorage } from "firebase/storage";
+import { getMessaging, getToken } from "firebase/messaging";
 
-// Firebase configuration
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyAEQ4lEpA6bRiQxUxqNqO1igM_MhC8ivII",
-  authDomain: `${import.meta.env.VITE_FIREBASE_PROJECT_ID || "travel-d6500"}.firebaseapp.com`,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "travel-d6500",
-  storageBucket: `${import.meta.env.VITE_FIREBASE_PROJECT_ID || "travel-d6500"}.firebasestorage.app`,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:542472007789:web:4a8a41e444bea53822cf64"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "demo-api-key",
+  authDomain: `${import.meta.env.VITE_FIREBASE_PROJECT_ID || "demo-project"}.firebaseapp.com`,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "demo-project",
+  storageBucket: `${import.meta.env.VITE_FIREBASE_PROJECT_ID || "demo-project"}.appspot.com`,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "demo-sender-id",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "demo-app-id"
 };
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const storage = getStorage(app);
+const messaging = getMessaging(app);
 
 // Providers
 const googleProvider = new GoogleAuthProvider();
@@ -60,16 +54,21 @@ export const requestNotificationPermission = async () => {
   try {
     const permission = await Notification.requestPermission();
     if (permission === 'granted') {
-      console.log('Notification permission granted');
-      return true;
+      const currentToken = await getToken(messaging, {
+        vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY
+      });
+      if (currentToken) {
+        console.log('Notification permission granted');
+        return currentToken;
+      } else {
+        console.log('No registration token available');
+      }
     } else {
       console.log('Notification permission denied');
-      return false;
     }
   } catch (error) {
     console.error('Error requesting notification permission:', error);
-    return false;
   }
 };
 
-export { auth, storage, app };
+export { auth, storage, messaging, app };

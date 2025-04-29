@@ -32,16 +32,12 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { insertTripSchema } from "@shared/schema";
 import { useAuthContext } from "@/context/auth-context";
 
-// Define our own schema based on the backend requirements
-const formSchema = z.object({
-  title: z.string().min(1, "Title is required"),
-  destinationId: z.number().min(1, "Please select a destination"),
+const formSchema = insertTripSchema.extend({
   startDate: z.date(),
   endDate: z.date(),
-  description: z.string().optional(),
-  imageUrl: z.string().optional(),
 }).refine(
   (data) => data.endDate >= data.startDate,
   {
@@ -62,18 +58,11 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Use proper typing for destinations
-  const { data: destinations } = useQuery<Array<{ 
-    id: number; 
-    name: string; 
-    country: string;
-    imageUrl?: string;
-  }>>({
+  const { data: destinations } = useQuery({
     queryKey: ['/api/destinations'],
   });
 
-  // Use proper typing for dbUser
-  const { data: dbUser } = useQuery<{ id: number; uid: string; username: string; email: string }>({
+  const { data: dbUser } = useQuery({
     queryKey: [`/api/users/uid/${user?.uid}`],
     enabled: !!user?.uid,
   });
@@ -81,21 +70,15 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      title: "",
+      userId: 0,
       destinationId: 0,
+      title: "",
+      description: "",
       startDate: new Date(),
       endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
-      description: "",
       imageUrl: "",
-    },
-    // Ensure we use proper empty values for optional fields
-    values: {
-      title: "",
-      destinationId: 0,
-      startDate: new Date(),
-      endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-      description: "",
-      imageUrl: "",
+      activities: 0,
+      isFavorite: false,
     },
   });
 
@@ -111,26 +94,20 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
 
     setIsSubmitting(true);
     
-    try {
-      // Get destination info for the image URL if needed
-      const selectedDestination = destinations?.find(dest => dest.id === data.destinationId);
+    const selectedDestination = destinations?.find(
+      (dest: any) => dest.id === parseInt(data.destinationId.toString())
+    );
 
-      // Create the server payload
+    try {
       const payload = {
+        ...data,
         userId: dbUser.id,
-        destinationId: data.destinationId,
-        title: data.title,
-        description: data.description || "",
         startDate: data.startDate.toISOString(),
         endDate: data.endDate.toISOString(),
-        imageUrl: data.imageUrl || (selectedDestination ? selectedDestination.imageUrl : ""),
-        activities: 0,
-        isFavorite: false
+        destinationId: parseInt(data.destinationId.toString()),
+        imageUrl: data.imageUrl || selectedDestination?.imageUrl || "",
       };
 
-      console.log("Submitting trip payload:", payload);
-      
-      // Call the API
       await apiRequest("POST", "/api/trips", payload);
       
       toast({
@@ -146,7 +123,6 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
       
       form.reset();
     } catch (error) {
-      console.error("Error creating trip:", error);
       toast({
         title: "Error",
         description: "Failed to create trip. Please try again.",
@@ -181,8 +157,8 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
             <FormItem>
               <FormLabel>Destination</FormLabel>
               <Select 
-                onValueChange={(value) => field.onChange(parseInt(value))} 
-                defaultValue={field.value > 0 ? field.value.toString() : undefined}
+                onValueChange={field.onChange} 
+                defaultValue={field.value.toString()}
               >
                 <FormControl>
                   <SelectTrigger>
@@ -190,7 +166,7 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  {destinations?.map((destination) => (
+                  {destinations?.map((destination: any) => (
                     <SelectItem 
                       key={destination.id} 
                       value={destination.id.toString()}
@@ -216,7 +192,6 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
                   <PopoverTrigger asChild>
                     <FormControl>
                       <Button
-                        type="button"
                         variant={"outline"}
                         className={cn(
                           "pl-3 text-left font-normal",
@@ -256,7 +231,6 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
                   <PopoverTrigger asChild>
                     <FormControl>
                       <Button
-                        type="button"
                         variant={"outline"}
                         className={cn(
                           "pl-3 text-left font-normal",

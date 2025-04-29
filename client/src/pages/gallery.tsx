@@ -82,7 +82,7 @@ export default function Gallery() {
                       <SelectValue placeholder="Filter by trip" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Trips</SelectItem>
+                      <SelectItem value="">All Trips</SelectItem>
                       {trips.map((trip: any) => (
                         <SelectItem key={trip.id} value={trip.id.toString()}>
                           {trip.title}
