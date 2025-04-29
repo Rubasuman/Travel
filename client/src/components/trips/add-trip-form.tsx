@@ -115,14 +115,23 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
     );
 
     try {
+      // Debug the form data
+      console.log("Form data before submission:", data);
+      
+      // Prepare payload according to the expected schema
       const payload = {
-        ...data,
         userId: dbUser.id,
+        destinationId: parseInt(data.destinationId.toString()),
+        title: data.title,
         startDate: data.startDate.toISOString(),
         endDate: data.endDate.toISOString(),
-        destinationId: parseInt(data.destinationId.toString()),
+        description: data.description || "",
         imageUrl: data.imageUrl || selectedDestination?.imageUrl || "",
+        activities: data.activities || 0,
+        isFavorite: data.isFavorite || false,
       };
+      
+      console.log("Payload to be sent:", payload);
 
       // Save to server backend storage
       const response = await apiRequest("POST", "/api/trips", payload);
@@ -162,11 +171,18 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
       } else {
         throw new Error("Invalid response format from server");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating trip:", error);
+      // Log more details about the error
+      let errorMessage = "Failed to create trip. Please try again.";
+      
+      if (error.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
         title: "Error",
-        description: "Failed to create trip. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
