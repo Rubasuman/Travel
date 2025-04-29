@@ -95,13 +95,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   app.post("/api/trips", async (req: Request, res: Response) => {
     try {
-      const tripPayload = insertTripSchema.parse(req.body);
+      // Convert ISO date strings to Date objects
+      const body = { ...req.body };
+      if (typeof body.startDate === 'string') {
+        body.startDate = new Date(body.startDate);
+      }
+      if (typeof body.endDate === 'string') {
+        body.endDate = new Date(body.endDate);
+      }
+      
+      const tripPayload = insertTripSchema.parse(body);
       const trip = await storage.createTrip(tripPayload);
       res.status(201).json(trip);
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Invalid trip data", errors: error.errors });
       }
+      console.error("Failed to create trip:", error);
       res.status(500).json({ message: "Failed to create trip" });
     }
   });
