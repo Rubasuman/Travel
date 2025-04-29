@@ -3,24 +3,24 @@ import { getAuth, signInWithPopup, signInWithEmailAndPassword, createUserWithEma
   signOut, GoogleAuthProvider, FacebookAuthProvider, 
   onAuthStateChanged, type User } from "firebase/auth";
 import { getStorage } from "firebase/storage";
-import { getMessaging, getToken } from "firebase/messaging";
+import { getFirestore, collection, doc, getDoc, setDoc, updateDoc, deleteDoc, query, where, getDocs } from "firebase/firestore";
 
+// Firebase configuration
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "demo-api-key",
-  authDomain: `${import.meta.env.VITE_FIREBASE_PROJECT_ID || "demo-project"}.firebaseapp.com`,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "demo-project",
-  storageBucket: `${import.meta.env.VITE_FIREBASE_PROJECT_ID || "demo-project"}.appspot.com`,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "demo-sender-id",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "demo-app-id"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: `${import.meta.env.VITE_FIREBASE_PROJECT_ID}.firebaseapp.com`,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: `${import.meta.env.VITE_FIREBASE_PROJECT_ID}.appspot.com`,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
-// Initialize Firebase
+// Initialize Firebase services
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const storage = getStorage(app);
-const messaging = getMessaging(app);
+const db = getFirestore(app);
 
-// Providers
+// Authentication providers
 const googleProvider = new GoogleAuthProvider();
 const facebookProvider = new FacebookAuthProvider();
 
@@ -49,26 +49,87 @@ export const onAuthChange = (callback: (user: User | null) => void) => {
   return onAuthStateChanged(auth, callback);
 };
 
+// Firestore Database functions
+export const createDocument = async (collectionName: string, docId: string, data: any) => {
+  try {
+    await setDoc(doc(db, collectionName, docId), data);
+    return { id: docId, ...data };
+  } catch (error) {
+    console.error("Error creating document:", error);
+    throw error;
+  }
+};
+
+export const getDocument = async (collectionName: string, docId: string) => {
+  try {
+    const docRef = doc(db, collectionName, docId);
+    const docSnap = await getDoc(docRef);
+    
+    if (docSnap.exists()) {
+      return { id: docSnap.id, ...docSnap.data() };
+    } else {
+      return null;
+    }
+  } catch (error) {
+    console.error("Error getting document:", error);
+    throw error;
+  }
+};
+
+export const updateDocument = async (collectionName: string, docId: string, data: any) => {
+  try {
+    const docRef = doc(db, collectionName, docId);
+    await updateDoc(docRef, data);
+    return { id: docId, ...data };
+  } catch (error) {
+    console.error("Error updating document:", error);
+    throw error;
+  }
+};
+
+export const deleteDocument = async (collectionName: string, docId: string) => {
+  try {
+    await deleteDoc(doc(db, collectionName, docId));
+    return true;
+  } catch (error) {
+    console.error("Error deleting document:", error);
+    throw error;
+  }
+};
+
+export const queryDocuments = async (collectionName: string, field: string, operator: any, value: any) => {
+  try {
+    const q = query(collection(db, collectionName), where(field, operator, value));
+    const querySnapshot = await getDocs(q);
+    
+    const results: any[] = [];
+    querySnapshot.forEach((doc) => {
+      results.push({ id: doc.id, ...doc.data() });
+    });
+    
+    return results;
+  } catch (error) {
+    console.error("Error querying documents:", error);
+    throw error;
+  }
+};
+
 // Notifications
 export const requestNotificationPermission = async () => {
   try {
     const permission = await Notification.requestPermission();
     if (permission === 'granted') {
-      const currentToken = await getToken(messaging, {
-        vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY
-      });
-      if (currentToken) {
-        console.log('Notification permission granted');
-        return currentToken;
-      } else {
-        console.log('No registration token available');
-      }
+      console.log('Notification permission granted');
+      return true;
     } else {
       console.log('Notification permission denied');
+      return false;
     }
   } catch (error) {
     console.error('Error requesting notification permission:', error);
+    return false;
   }
 };
 
-export { auth, storage, messaging, app };
+// Export Firebase services
+export { auth, storage, db, app };

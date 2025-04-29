@@ -4,7 +4,7 @@ import { auth } from "@/lib/firebase";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Home, MapPin, Route, Images, Bell, LogOut } from "lucide-react";
+import { Home, MapPin, Route, Images, Bell, LogOut, Database } from "lucide-react";
 import { useAuthContext } from "@/context/auth-context";
 
 export function Sidebar() {
@@ -66,6 +66,12 @@ export function Sidebar() {
           icon={<Bell className="size-5" />} 
           label="Notifications" 
           active={isActive("/notifications")} 
+        />
+        <NavItem 
+          href="/firebase-test" 
+          icon={<Database className="size-5" />} 
+          label="Firebase Test" 
+          active={isActive("/firebase-test")} 
         />
       </nav>
       

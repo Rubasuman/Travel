@@ -11,6 +11,7 @@ import Trips from "@/pages/trips";
 import TripDetails from "@/pages/trip-details";
 import Gallery from "@/pages/gallery";
 import Notifications from "@/pages/notifications";
+import FirebaseTest from "@/pages/firebase-test";
 import ProtectedRoute from "@/components/auth/protected-route";
 import NotFound from "@/pages/not-found";
 
@@ -46,6 +47,11 @@ function Router() {
       <Route path="/notifications" component={() => (
         <ProtectedRoute>
           <Notifications />
+        </ProtectedRoute>
+      )} />
+      <Route path="/firebase-test" component={() => (
+        <ProtectedRoute>
+          <FirebaseTest />
         </ProtectedRoute>
       )} />
       <Route component={NotFound} />
