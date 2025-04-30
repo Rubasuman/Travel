@@ -14,6 +14,7 @@ import Notifications from "@/pages/notifications";
 import FirebaseTest from "@/pages/firebase-test";
 import ProtectedRoute from "@/components/auth/protected-route";
 import NotFound from "@/pages/not-found";
+import { useEffect } from "react";
 
 function Router() {
   return (
@@ -60,12 +61,19 @@ function Router() {
 }
 
 function App() {
+  // Apply dark theme by default
+  useEffect(() => {
+    document.documentElement.classList.add('dark');
+  }, []);
+  
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <TooltipProvider>
-          <Toaster />
-          <Router />
+          <div className="min-h-screen bg-background text-foreground">
+            <Toaster />
+            <Router />
+          </div>
         </TooltipProvider>
       </AuthProvider>
     </QueryClientProvider>
