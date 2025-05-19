@@ -14,6 +14,8 @@ import Notifications from "@/pages/notifications";
 import FirebaseTest from "@/pages/firebase-test";
 import ProtectedRoute from "@/components/auth/protected-route";
 import NotFound from "@/pages/not-found";
+import Documentation from "@/pages/documentation";
+import DocumentationTravel from "@/pages/documentation-travel";
 import { useEffect } from "react";
 
 function Router() {
@@ -55,6 +57,8 @@ function Router() {
           <FirebaseTest />
         </ProtectedRoute>
       )} />
+      <Route path="/documentation" component={Documentation} />
+      <Route path="/documentation-travel" component={DocumentationTravel} />
       <Route component={NotFound} />
     </Switch>
   );
