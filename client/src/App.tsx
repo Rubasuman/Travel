@@ -16,6 +16,7 @@ import ProtectedRoute from "@/components/auth/protected-route";
 import NotFound from "@/pages/not-found";
 import Documentation from "@/pages/documentation";
 import DocumentationTravel from "@/pages/documentation-travel";
+import ArchitecturePage from "@/pages/architecture";
 import { useEffect } from "react";
 
 function Router() {
@@ -59,6 +60,7 @@ function Router() {
       )} />
       <Route path="/documentation" component={Documentation} />
       <Route path="/documentation-travel" component={DocumentationTravel} />
+      <Route path="/architecture" component={ArchitecturePage} />
       <Route component={NotFound} />
     </Switch>
   );
