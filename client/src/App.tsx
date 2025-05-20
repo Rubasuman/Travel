@@ -19,6 +19,7 @@ import DocumentationTravel from "@/pages/documentation-travel";
 import ArchitecturePage from "@/pages/architecture";
 import ArchitectureDetailedPage from "@/pages/architecture-detailed";
 import TravelCompanionArchitecture from "@/pages/travel-companion-architecture";
+import ArchitectureSingleBox from "@/pages/architecture-single-box";
 import { useEffect } from "react";
 
 function Router() {
@@ -65,6 +66,7 @@ function Router() {
       <Route path="/architecture" component={ArchitecturePage} />
       <Route path="/architecture-detailed" component={ArchitectureDetailedPage} />
       <Route path="/travel-companion-architecture" component={TravelCompanionArchitecture} />
+      <Route path="/architecture-single-box" component={ArchitectureSingleBox} />
       <Route component={NotFound} />
     </Switch>
   );
