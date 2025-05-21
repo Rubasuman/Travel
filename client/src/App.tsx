@@ -20,6 +20,14 @@ import ArchitecturePage from "@/pages/architecture";
 import ArchitectureDetailedPage from "@/pages/architecture-detailed";
 import TravelCompanionArchitecture from "@/pages/travel-companion-architecture";
 import ArchitectureSingleBox from "@/pages/architecture-single-box";
+import UISnapshots from "@/pages/ui-snapshots";
+import LoginSnapshot from "@/pages/login-snapshot";
+import DashboardSnapshot from "@/pages/dashboard-snapshot";
+import TripManagementSnapshot from "@/pages/trip-management-snapshot";
+import DestinationsSnapshot from "@/pages/destinations-snapshot";
+import ItinerarySnapshot from "@/pages/itinerary-snapshot";
+import GallerySnapshot from "@/pages/gallery-snapshot";
+import NotificationsSnapshot from "@/pages/notifications-snapshot";
 import { useEffect } from "react";
 
 function Router() {
@@ -67,6 +75,17 @@ function Router() {
       <Route path="/architecture-detailed" component={ArchitectureDetailedPage} />
       <Route path="/travel-companion-architecture" component={TravelCompanionArchitecture} />
       <Route path="/architecture-single-box" component={ArchitectureSingleBox} />
+      
+      {/* UI Snapshots Routes */}
+      <Route path="/ui-snapshots" component={UISnapshots} />
+      <Route path="/login-snapshot" component={LoginSnapshot} />
+      <Route path="/dashboard-snapshot" component={DashboardSnapshot} />
+      <Route path="/trip-management-snapshot" component={TripManagementSnapshot} />
+      <Route path="/destinations-snapshot" component={DestinationsSnapshot} />
+      <Route path="/itinerary-snapshot" component={ItinerarySnapshot} />
+      <Route path="/gallery-snapshot" component={GallerySnapshot} />
+      <Route path="/notifications-snapshot" component={NotificationsSnapshot} />
+      
       <Route component={NotFound} />
     </Switch>
   );
