@@ -1,1 +1,336 @@
-import { useState, useEffect } from 'react';\nimport { useForm } from 'react-hook-form';\nimport { zodResolver } from '@hookform/resolvers/zod';\nimport { useMutation, useQueryClient } from '@tanstack/react-query';\nimport { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';\nimport { Button } from '@/components/ui/button';\nimport { Input } from '@/components/ui/input';\nimport { Textarea } from '@/components/ui/textarea';\nimport { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';\nimport { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';\nimport { Calendar } from '@/components/ui/calendar';\nimport { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';\nimport { CalendarIcon, Receipt, DollarSign } from 'lucide-react';\nimport { format } from 'date-fns';\nimport { cn } from '@/lib/utils';\nimport { useToast } from '@/hooks/use-toast';\nimport { apiRequest } from '@/lib/queryClient';\nimport { currencyService, CURRENCIES } from '@/lib/currency';\nimport { insertExpenseSchema, type InsertExpense } from '@shared/schema';\nimport { z } from 'zod';\n\nconst addExpenseSchema = insertExpenseSchema.extend({\n  amount: z.number().min(0.01, 'Amount must be greater than 0'),\n  description: z.string().min(1, 'Description is required'),\n  category: z.string().min(1, 'Category is required'),\n  date: z.date(),\n});\n\ntype AddExpenseForm = z.infer<typeof addExpenseSchema>;\n\ninterface AddExpenseFormProps {\n  tripId: number;\n  userId: number;\n  budgetId?: number;\n  defaultCurrency?: string;\n  onSuccess?: () => void;\n  onCancel?: () => void;\n}\n\nconst EXPENSE_CATEGORIES = [\n  { value: 'accommodation', label: 'Accommodation', icon: '🏨' },\n  { value: 'food', label: 'Food & Dining', icon: '🍽️' },\n  { value: 'transport', label: 'Transportation', icon: '🚗' },\n  { value: 'activities', label: 'Activities & Tours', icon: '🎯' },\n  { value: 'shopping', label: 'Shopping', icon: '🛍️' },\n  { value: 'entertainment', label: 'Entertainment', icon: '🎭' },\n  { value: 'health', label: 'Health & Medical', icon: '⚕️' },\n  { value: 'communication', label: 'Communication', icon: '📱' },\n  { value: 'tips', label: 'Tips & Gratuity', icon: '💰' },\n  { value: 'other', label: 'Other', icon: '📝' },\n];\n\nexport function AddExpenseForm({ \n  tripId, \n  userId, \n  budgetId, \n  defaultCurrency = 'USD', \n  onSuccess, \n  onCancel \n}: AddExpenseFormProps) {\n  const [convertedAmount, setConvertedAmount] = useState<number | null>(null);\n  const { toast } = useToast();\n  const queryClient = useQueryClient();\n\n  const form = useForm<AddExpenseForm>({\n    resolver: zodResolver(addExpenseSchema),\n    defaultValues: {\n      tripId,\n      userId,\n      budgetId: budgetId || undefined,\n      amount: 0,\n      originalAmount: undefined,\n      currency: defaultCurrency,\n      originalCurrency: undefined,\n      category: '',\n      description: '',\n      location: '',\n      receiptUrl: '',\n      date: new Date(),\n      exchangeRate: undefined,\n      createdAt: new Date(),\n    },\n  });\n\n  const createExpenseMutation = useMutation({\n    mutationFn: (data: InsertExpense) => apiRequest('/api/expenses', {\n      method: 'POST',\n      body: JSON.stringify({\n        ...data,\n        amount: data.amount.toString(),\n        originalAmount: data.originalAmount?.toString(),\n        exchangeRate: data.exchangeRate?.toString(),\n      }),\n    }),\n    onSuccess: () => {\n      toast({\n        title: 'Expense added',\n        description: 'Your expense has been recorded successfully.',\n      });\n      queryClient.invalidateQueries({ queryKey: ['/api/trips', tripId, 'expenses'] });\n      queryClient.invalidateQueries({ queryKey: ['/api/trips', tripId, 'budget'] });\n      form.reset();\n      onSuccess?.();\n    },\n    onError: () => {\n      toast({\n        title: 'Error',\n        description: 'Failed to add expense. Please try again.',\n        variant: 'destructive',\n      });\n    },\n  });\n\n  // Handle currency conversion\n  const handleCurrencyConversion = async (amount: number, fromCurrency: string) => {\n    if (fromCurrency === defaultCurrency) {\n      setConvertedAmount(null);\n      form.setValue('originalAmount', undefined);\n      form.setValue('originalCurrency', undefined);\n      form.setValue('exchangeRate', undefined);\n      return;\n    }\n\n    try {\n      const rate = await currencyService.getExchangeRate(fromCurrency, defaultCurrency);\n      const converted = amount * rate;\n      \n      setConvertedAmount(converted);\n      form.setValue('originalAmount', amount);\n      form.setValue('originalCurrency', fromCurrency);\n      form.setValue('exchangeRate', rate);\n      form.setValue('amount', converted);\n      form.setValue('currency', defaultCurrency);\n    } catch (error) {\n      toast({\n        title: 'Currency conversion failed',\n        description: 'Using original amount without conversion.',\n        variant: 'destructive',\n      });\n    }\n  };\n\n  const onSubmit = (data: AddExpenseForm) => {\n    createExpenseMutation.mutate({\n      ...data,\n      createdAt: new Date(),\n    });\n  };\n\n  const watchedAmount = form.watch('amount');\n  const watchedCurrency = form.watch('currency');\n\n  // Auto-convert when amount or currency changes\n  React.useEffect(() => {\n    if (watchedAmount > 0 && watchedCurrency) {\n      handleCurrencyConversion(watchedAmount, watchedCurrency);\n    }\n  }, [watchedAmount, watchedCurrency]);\n\n  return (\n    <Card>\n      <CardHeader>\n        <CardTitle className=\"flex items-center gap-2\">\n          <Receipt className=\"w-5 h-5\" />\n          Add New Expense\n        </CardTitle>\n      </CardHeader>\n      <CardContent>\n        <Form {...form}>\n          <form onSubmit={form.handleSubmit(onSubmit)} className=\"space-y-4\">\n            <div className=\"grid grid-cols-1 md:grid-cols-2 gap-4\">\n              <FormField\n                control={form.control}\n                name=\"amount\"\n                render={({ field }) => (\n                  <FormItem>\n                    <FormLabel>Amount *</FormLabel>\n                    <FormControl>\n                      <div className=\"relative\">\n                        <DollarSign className=\"absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4\" />\n                        <Input\n                          type=\"number\"\n                          step=\"0.01\"\n                          min=\"0\"\n                          className=\"pl-9\"\n                          placeholder=\"0.00\"\n                          {...field}\n                          onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}\n                        />\n                      </div>\n                    </FormControl>\n                    <FormMessage />\n                  </FormItem>\n                )}\n              />\n\n              <FormField\n                control={form.control}\n                name=\"currency\"\n                render={({ field }) => (\n                  <FormItem>\n                    <FormLabel>Currency *</FormLabel>\n                    <Select onValueChange={field.onChange} defaultValue={field.value}>\n                      <FormControl>\n                        <SelectTrigger>\n                          <SelectValue placeholder=\"Select currency\" />\n                        </SelectTrigger>\n                      </FormControl>\n                      <SelectContent>\n                        {CURRENCIES.map((currency) => (\n                          <SelectItem key={currency.code} value={currency.code}>\n                            {currency.symbol} {currency.code} - {currency.name}\n                          </SelectItem>\n                        ))}\n                      </SelectContent>\n                    </Select>\n                    <FormMessage />\n                  </FormItem>\n                )}\n              />\n            </div>\n\n            {convertedAmount && (\n              <div className=\"p-3 bg-blue-50 border border-blue-200 rounded-lg\">\n                <p className=\"text-sm text-blue-700\">\n                  Converted to {defaultCurrency}: {currencyService.formatCurrency(convertedAmount, defaultCurrency)}\n                  <span className=\"text-blue-500 ml-2\">\n                    (Rate: 1 {watchedCurrency} = {form.getValues('exchangeRate')?.toFixed(4)} {defaultCurrency})\n                  </span>\n                </p>\n              </div>\n            )}\n\n            <FormField\n              control={form.control}\n              name=\"category\"\n              render={({ field }) => (\n                <FormItem>\n                  <FormLabel>Category *</FormLabel>\n                  <Select onValueChange={field.onChange} defaultValue={field.value}>\n                    <FormControl>\n                      <SelectTrigger>\n                        <SelectValue placeholder=\"Select category\" />\n                      </SelectTrigger>\n                    </FormControl>\n                    <SelectContent>\n                      {EXPENSE_CATEGORIES.map((category) => (\n                        <SelectItem key={category.value} value={category.value}>\n                          <span className=\"flex items-center gap-2\">\n                            <span>{category.icon}</span>\n                            {category.label}\n                          </span>\n                        </SelectItem>\n                      ))}\n                    </SelectContent>\n                  </Select>\n                  <FormMessage />\n                </FormItem>\n              )}\n            />\n\n            <FormField\n              control={form.control}\n              name=\"description\"\n              render={({ field }) => (\n                <FormItem>\n                  <FormLabel>Description *</FormLabel>\n                  <FormControl>\n                    <Textarea\n                      placeholder=\"What was this expense for?\"\n                      className=\"min-h-[60px]\"\n                      {...field}\n                    />\n                  </FormControl>\n                  <FormMessage />\n                </FormItem>\n              )}\n            />\n\n            <div className=\"grid grid-cols-1 md:grid-cols-2 gap-4\">\n              <FormField\n                control={form.control}\n                name=\"location\"\n                render={({ field }) => (\n                  <FormItem>\n                    <FormLabel>Location (Optional)</FormLabel>\n                    <FormControl>\n                      <Input\n                        placeholder=\"Where did you spend this?\"\n                        {...field}\n                      />\n                    </FormControl>\n                    <FormMessage />\n                  </FormItem>\n                )}\n              />\n\n              <FormField\n                control={form.control}\n                name=\"date\"\n                render={({ field }) => (\n                  <FormItem>\n                    <FormLabel>Date *</FormLabel>\n                    <Popover>\n                      <PopoverTrigger asChild>\n                        <FormControl>\n                          <Button\n                            variant=\"outline\"\n                            className={cn(\n                              'w-full pl-3 text-left font-normal',\n                              !field.value && 'text-muted-foreground'\n                            )}\n                          >\n                            {field.value ? (\n                              format(field.value, 'PPP')\n                            ) : (\n                              <span>Pick a date</span>\n                            )}\n                            <CalendarIcon className=\"ml-auto h-4 w-4 opacity-50\" />\n                          </Button>\n                        </FormControl>\n                      </PopoverTrigger>\n                      <PopoverContent className=\"w-auto p-0\" align=\"start\">\n                        <Calendar\n                          mode=\"single\"\n                          selected={field.value}\n                          onSelect={field.onChange}\n                          disabled={(date) =>\n                            date > new Date() || date < new Date('1900-01-01')\n                          }\n                          initialFocus\n                        />\n                      </PopoverContent>\n                    </Popover>\n                    <FormMessage />\n                  </FormItem>\n                )}\n              />\n            </div>\n\n            <FormField\n              control={form.control}\n              name=\"receiptUrl\"\n              render={({ field }) => (\n                <FormItem>\n                  <FormLabel>Receipt URL (Optional)</FormLabel>\n                  <FormControl>\n                    <Input\n                      type=\"url\"\n                      placeholder=\"https://example.com/receipt.jpg\"\n                      {...field}\n                    />\n                  </FormControl>\n                  <FormMessage />\n                </FormItem>\n              )}\n            />\n\n            <div className=\"flex gap-2 pt-4\">\n              <Button\n                type=\"submit\"\n                disabled={createExpenseMutation.isPending}\n                className=\"flex-1\"\n              >\n                {createExpenseMutation.isPending ? 'Adding...' : 'Add Expense'}\n              </Button>\n              {onCancel && (\n                <Button type=\"button\" variant=\"outline\" onClick={onCancel}>\n                  Cancel\n                </Button>\n              )}\n            </div>\n          </form>\n        </Form>\n      </CardContent>\n    </Card>\n  );\n}"
+import { useState, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { CalendarIcon, Receipt, DollarSign } from 'lucide-react';
+import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
+import { apiRequest } from '@/lib/queryClient';
+import { currencyService, CURRENCIES } from '@/lib/currency';
+import { insertExpenseSchema, type InsertExpense } from '@shared/schema';
+import { z } from 'zod';
+
+const addExpenseSchema = insertExpenseSchema.extend({
+  amount: z.number().min(0.01, 'Amount must be greater than 0'),
+  description: z.string().min(1, 'Description is required'),
+  category: z.string().min(1, 'Category is required'),
+  date: z.date(),
+});
+
+type AddExpenseFormData = z.infer<typeof addExpenseSchema>;
+
+interface AddExpenseFormProps {
+  tripId: number;
+  userId: number;
+  budgetId?: number;
+  defaultCurrency?: string;
+  onSuccess?: () => void;
+  onCancel?: () => void;
+}
+
+const EXPENSE_CATEGORIES = [
+  { value: 'accommodation', label: 'Accommodation', icon: '🏨' },
+  { value: 'food', label: 'Food & Dining', icon: '🍽️' },
+  { value: 'transport', label: 'Transportation', icon: '🚗' },
+  { value: 'activities', label: 'Activities & Tours', icon: '🎯' },
+  { value: 'shopping', label: 'Shopping', icon: '🛍️' },
+  { value: 'entertainment', label: 'Entertainment', icon: '🎭' },
+  { value: 'health', label: 'Health & Medical', icon: '⚕️' },
+  { value: 'communication', label: 'Communication', icon: '📱' },
+  { value: 'tips', label: 'Tips & Gratuity', icon: '💰' },
+  { value: 'other', label: 'Other', icon: '📝' },
+];
+
+export function AddExpenseForm({ 
+  tripId, 
+  userId, 
+  budgetId, 
+  defaultCurrency = 'USD', 
+  onSuccess, 
+  onCancel 
+}: AddExpenseFormProps) {
+  const [convertedAmount, setConvertedAmount] = useState<number | null>(null);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const form = useForm<AddExpenseFormData>({
+    resolver: zodResolver(addExpenseSchema),
+    defaultValues: {
+      tripId,
+      userId,
+      budgetId: budgetId || undefined,
+      amount: 0,
+      originalAmount: undefined,
+      currency: defaultCurrency,
+      originalCurrency: undefined,
+      category: '',
+      description: '',
+      location: '',
+      receiptUrl: '',
+      date: new Date(),
+    },
+  });
+
+  const addExpenseMutation = useMutation({
+    mutationFn: (data: InsertExpense) => 
+      fetch('/api/expenses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      }).then(res => res.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/trips', tripId, 'expenses'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/trips', tripId, 'budget'] });
+      toast({ title: 'Success', description: 'Expense added successfully!' });
+      onSuccess?.();
+    },
+    onError: (error) => {
+      toast({ 
+        title: 'Error', 
+        description: 'Failed to add expense. Please try again.',
+        variant: 'destructive'
+      });
+    },
+  });
+
+  // Convert amount to default currency when currency changes
+  const watchCurrency = form.watch('currency');
+  const watchAmount = form.watch('amount');
+
+  useEffect(() => {
+    const convertAmount = async () => {
+      if (watchCurrency === defaultCurrency || !watchAmount) {
+        setConvertedAmount(null);
+        return;
+      }
+
+      try {
+        const converted = await currencyService.convertCurrency(
+          watchAmount,
+          watchCurrency || defaultCurrency,
+          defaultCurrency
+        );
+        setConvertedAmount(converted);
+      } catch (error) {
+        console.error('Currency conversion failed:', error);
+        setConvertedAmount(null);
+      }
+    };
+
+    convertAmount();
+  }, [watchAmount, watchCurrency, defaultCurrency]);
+
+  const onSubmit = (data: AddExpenseFormData) => {
+    const expenseData: InsertExpense = {
+      ...data,
+      originalAmount: data.currency !== defaultCurrency ? data.amount.toString() : undefined,
+      originalCurrency: data.currency !== defaultCurrency ? data.currency : undefined,
+      amount: (convertedAmount || data.amount).toString(),
+      currency: convertedAmount ? defaultCurrency : data.currency,
+    };
+
+    addExpenseMutation.mutate(expenseData);
+  };
+
+  return (
+    <Card className="w-full max-w-lg mx-auto">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Receipt className="w-5 h-5 text-blue-600" />
+          Add New Expense
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            {/* Amount and Currency */}
+            <div className="grid grid-cols-2 gap-2">
+              <FormField
+                control={form.control}
+                name="amount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Amount</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        placeholder="0.00"
+                        {...field}
+                        onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="currency"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Currency</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Currency" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {CURRENCIES.map((currency) => (
+                          <SelectItem key={currency.code} value={currency.code}>
+                            {currency.code} - {currency.symbol}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* Converted Amount Display */}
+            {convertedAmount && (
+              <div className="text-sm text-gray-600 bg-blue-50 p-2 rounded">
+                <DollarSign className="w-4 h-4 inline mr-1" />
+                Converted: {convertedAmount.toFixed(2)} {defaultCurrency}
+              </div>
+            )}
+
+            {/* Category */}
+            <FormField
+              control={form.control}
+              name="category"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Category</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select category" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {EXPENSE_CATEGORIES.map((category) => (
+                        <SelectItem key={category.value} value={category.value}>
+                          {category.icon} {category.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Description */}
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Description</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder="What did you spend on?"
+                      className="resize-none"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Location */}
+            <FormField
+              control={form.control}
+              name="location"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Location (Optional)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Where did this happen?" {...field} value={field.value || ''} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Date */}
+            <FormField
+              control={form.control}
+              name="date"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Date</FormLabel>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <FormControl>
+                        <Button
+                          variant={"outline"}
+                          className={cn(
+                            "w-full pl-3 text-left font-normal",
+                            !field.value && "text-muted-foreground"
+                          )}
+                        >
+                          {field.value ? (
+                            format(field.value, "PPP")
+                          ) : (
+                            <span>Pick a date</span>
+                          )}
+                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                        </Button>
+                      </FormControl>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={field.value}
+                        onSelect={field.onChange}
+                        disabled={(date) =>
+                          date > new Date() || date < new Date("1900-01-01")
+                        }
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Actions */}
+            <div className="flex gap-2 pt-4">
+              <Button
+                type="submit"
+                disabled={addExpenseMutation.isPending}
+                className="flex-1"
+              >
+                {addExpenseMutation.isPending ? 'Adding...' : 'Add Expense'}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onCancel}
+                disabled={addExpenseMutation.isPending}
+              >
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </Form>
+      </CardContent>
+    </Card>
+  );
+}

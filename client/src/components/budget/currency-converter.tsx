@@ -1,1 +1,160 @@
-import { useState, useEffect } from 'react';\nimport { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';\nimport { Input } from '@/components/ui/input';\nimport { Button } from '@/components/ui/button';\nimport { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';\nimport { ArrowUpDown, RefreshCw, TrendingUp } from 'lucide-react';\nimport { currencyService, CURRENCIES } from '@/lib/currency';\nimport type { CurrencyInfo } from '@/lib/currency';\n\nexport function CurrencyConverter() {\n  const [fromCurrency, setFromCurrency] = useState('USD');\n  const [toCurrency, setToCurrency] = useState('EUR');\n  const [fromAmount, setFromAmount] = useState('100');\n  const [toAmount, setToAmount] = useState('');\n  const [exchangeRate, setExchangeRate] = useState<number | null>(null);\n  const [isLoading, setIsLoading] = useState(false);\n  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);\n\n  // Convert currency when inputs change\n  useEffect(() => {\n    const convertCurrency = async () => {\n      if (!fromAmount || fromAmount === '0' || fromCurrency === toCurrency) {\n        setToAmount(fromAmount);\n        setExchangeRate(1);\n        return;\n      }\n\n      setIsLoading(true);\n      try {\n        const rate = await currencyService.getExchangeRate(fromCurrency, toCurrency);\n        const converted = parseFloat(fromAmount) * rate;\n        \n        setExchangeRate(rate);\n        setToAmount(converted.toFixed(2));\n        setLastUpdated(new Date());\n      } catch (error) {\n        console.error('Currency conversion failed:', error);\n        setToAmount('Error');\n      } finally {\n        setIsLoading(false);\n      }\n    };\n\n    convertCurrency();\n  }, [fromAmount, fromCurrency, toCurrency]);\n\n  const handleSwapCurrencies = () => {\n    setFromCurrency(toCurrency);\n    setToCurrency(fromCurrency);\n    setFromAmount(toAmount);\n  };\n\n  const handleRefresh = () => {\n    // Force refresh by changing a dependency\n    setLastUpdated(null);\n  };\n\n  const getPopularCurrencies = (): CurrencyInfo[] => {\n    return CURRENCIES.slice(0, 8); // Show first 8 popular currencies\n  };\n\n  const formatExchangeRate = () => {\n    if (!exchangeRate) return '';\n    return `1 ${fromCurrency} = ${exchangeRate.toFixed(4)} ${toCurrency}`;\n  };\n\n  return (\n    <Card className=\"w-full max-w-md\">\n      <CardHeader>\n        <div className=\"flex items-center justify-between\">\n          <CardTitle className=\"flex items-center gap-2\">\n            <TrendingUp className=\"w-5 h-5 text-green-600\" />\n            Currency Converter\n          </CardTitle>\n          <Button\n            variant=\"ghost\"\n            size=\"sm\"\n            onClick={handleRefresh}\n            disabled={isLoading}\n          >\n            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />\n          </Button>\n        </div>\n      </CardHeader>\n      <CardContent className=\"space-y-4\">\n        {/* From Currency */}\n        <div className=\"space-y-2\">\n          <label className=\"text-sm font-medium\">From</label>\n          <div className=\"flex gap-2\">\n            <Input\n              type=\"number\"\n              value={fromAmount}\n              onChange={(e) => setFromAmount(e.target.value)}\n              placeholder=\"Enter amount\"\n              className=\"flex-1\"\n            />\n            <Select value={fromCurrency} onValueChange={setFromCurrency}>\n              <SelectTrigger className=\"w-24\">\n                <SelectValue />\n              </SelectTrigger>\n              <SelectContent>\n                {CURRENCIES.map((currency) => (\n                  <SelectItem key={currency.code} value={currency.code}>\n                    {currency.code}\n                  </SelectItem>\n                ))}\n              </SelectContent>\n            </Select>\n          </div>\n        </div>\n\n        {/* Swap Button */}\n        <div className=\"flex justify-center\">\n          <Button\n            variant=\"outline\"\n            size=\"sm\"\n            onClick={handleSwapCurrencies}\n            className=\"rounded-full w-8 h-8 p-0\"\n          >\n            <ArrowUpDown className=\"w-4 h-4\" />\n          </Button>\n        </div>\n\n        {/* To Currency */}\n        <div className=\"space-y-2\">\n          <label className=\"text-sm font-medium\">To</label>\n          <div className=\"flex gap-2\">\n            <Input\n              type=\"text\"\n              value={isLoading ? 'Converting...' : toAmount}\n              readOnly\n              placeholder=\"Converted amount\"\n              className=\"flex-1 bg-gray-50\"\n            />\n            <Select value={toCurrency} onValueChange={setToCurrency}>\n              <SelectTrigger className=\"w-24\">\n                <SelectValue />\n              </SelectTrigger>\n              <SelectContent>\n                {CURRENCIES.map((currency) => (\n                  <SelectItem key={currency.code} value={currency.code}>\n                    {currency.code}\n                  </SelectItem>\n                ))}\n              </SelectContent>\n            </Select>\n          </div>\n        </div>\n\n        {/* Exchange Rate */}\n        {exchangeRate && !isLoading && (\n          <div className=\"text-sm text-gray-600 text-center pt-2 border-t\">\n            <p className=\"font-medium\">{formatExchangeRate()}</p>\n            {lastUpdated && (\n              <p className=\"text-xs mt-1\">\n                Updated: {lastUpdated.toLocaleTimeString()}\n              </p>\n            )}\n          </div>\n        )}\n\n        {/* Popular Currency Quick Actions */}\n        <div className=\"space-y-2\">\n          <label className=\"text-sm font-medium\">Popular Currencies</label>\n          <div className=\"grid grid-cols-4 gap-1\">\n            {getPopularCurrencies().map((currency) => (\n              <Button\n                key={currency.code}\n                variant=\"outline\"\n                size=\"sm\"\n                onClick={() => setToCurrency(currency.code)}\n                className=\"text-xs h-8\"\n              >\n                {currency.code}\n              </Button>\n            ))}\n          </div>\n        </div>\n\n        {/* Travel Tips */}\n        <div className=\"bg-blue-50 border border-blue-200 rounded-lg p-3\">\n          <h4 className=\"text-sm font-medium text-blue-900 mb-1\">\n            💡 Travel Tip\n          </h4>\n          <p className=\"text-xs text-blue-700\">\n            Exchange rates update every 10 minutes. Check rates before making large purchases!\n          </p>\n        </div>\n      </CardContent>\n    </Card>\n  );\n}\n\n// Quick converter widget for embedding in other components\nexport function QuickConverter({ \n  fromCurrency = 'USD', \n  toCurrency = 'EUR', \n  amount = 100 \n}: {\n  fromCurrency?: string;\n  toCurrency?: string;\n  amount?: number;\n}) {\n  const [convertedAmount, setConvertedAmount] = useState<number | null>(null);\n  const [isLoading, setIsLoading] = useState(true);\n\n  useEffect(() => {\n    const convert = async () => {\n      setIsLoading(true);\n      try {\n        const converted = await currencyService.convertCurrency(amount, fromCurrency, toCurrency);\n        setConvertedAmount(converted);\n      } catch (error) {\n        console.error('Quick conversion failed:', error);\n      } finally {\n        setIsLoading(false);\n      }\n    };\n\n    convert();\n  }, [amount, fromCurrency, toCurrency]);\n\n  if (isLoading) {\n    return (\n      <div className=\"inline-flex items-center gap-1 text-sm text-gray-500\">\n        <RefreshCw className=\"w-3 h-3 animate-spin\" />\n        Converting...\n      </div>\n    );\n  }\n\n  if (convertedAmount === null) {\n    return null;\n  }\n\n  return (\n    <div className=\"inline-flex items-center gap-1 text-sm\">\n      <span className=\"text-gray-600\">\n        {currencyService.formatCurrency(amount, fromCurrency)}\n      </span>\n      <ArrowUpDown className=\"w-3 h-3 text-gray-400\" />\n      <span className=\"font-medium\">\n        {currencyService.formatCurrency(convertedAmount, toCurrency)}\n      </span>\n    </div>\n  );\n}\n"
+import { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ArrowUpDown, RefreshCw, TrendingUp } from 'lucide-react';
+import { currencyService, CURRENCIES } from '@/lib/currency';
+import type { CurrencyInfo } from '@/lib/currency';
+
+export function CurrencyConverter() {
+  const [fromCurrency, setFromCurrency] = useState('USD');
+  const [toCurrency, setToCurrency] = useState('EUR');
+  const [fromAmount, setFromAmount] = useState('100');
+  const [toAmount, setToAmount] = useState('');
+  const [exchangeRate, setExchangeRate] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+
+  // Convert currency when inputs change
+  useEffect(() => {
+    const convertCurrency = async () => {
+      if (!fromAmount || fromAmount === '0' || fromCurrency === toCurrency) {
+        setToAmount(fromAmount);
+        setExchangeRate(1);
+        return;
+      }
+
+      setIsLoading(true);
+      try {
+        const rate = await currencyService.getExchangeRate(fromCurrency, toCurrency);
+        const converted = parseFloat(fromAmount) * rate;
+        
+        setExchangeRate(rate);
+        setToAmount(converted.toFixed(2));
+        setLastUpdated(new Date());
+      } catch (error) {
+        console.error('Currency conversion failed:', error);
+        setToAmount('Error');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    convertCurrency();
+  }, [fromAmount, fromCurrency, toCurrency]);
+
+  const handleSwapCurrencies = () => {
+    setFromCurrency(toCurrency);
+    setToCurrency(fromCurrency);
+    setFromAmount(toAmount);
+  };
+
+  const handleRefresh = () => {
+    // Force refresh by updating the dependencies
+    setLastUpdated(null);
+    const currentFromAmount = fromAmount;
+    setFromAmount('');
+    setTimeout(() => setFromAmount(currentFromAmount), 100);
+  };
+
+  return (
+    <Card className="w-full max-w-md">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <TrendingUp className="w-5 h-5 text-blue-600" />
+          Currency Converter
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* From Currency */}
+        <div className="space-y-2">
+          <label className="text-sm font-medium">From</label>
+          <div className="flex gap-2">
+            <Input
+              type="number"
+              value={fromAmount}
+              onChange={(e) => setFromAmount(e.target.value)}
+              placeholder="Enter amount"
+              className="flex-1"
+            />
+            <Select value={fromCurrency} onValueChange={setFromCurrency}>
+              <SelectTrigger className="w-24">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CURRENCIES.map((currency: CurrencyInfo) => (
+                  <SelectItem key={currency.code} value={currency.code}>
+                    {currency.code}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Swap Button */}
+        <div className="flex justify-center">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleSwapCurrencies}
+            className="p-2"
+          >
+            <ArrowUpDown className="w-4 h-4" />
+          </Button>
+        </div>
+
+        {/* To Currency */}
+        <div className="space-y-2">
+          <label className="text-sm font-medium">To</label>
+          <div className="flex gap-2">
+            <Input
+              type="text"
+              value={isLoading ? 'Converting...' : toAmount}
+              readOnly
+              placeholder="Converted amount"
+              className="flex-1"
+            />
+            <Select value={toCurrency} onValueChange={setToCurrency}>
+              <SelectTrigger className="w-24">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CURRENCIES.map((currency: CurrencyInfo) => (
+                  <SelectItem key={currency.code} value={currency.code}>
+                    {currency.code}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Exchange Rate Info */}
+        {exchangeRate && (
+          <div className="text-sm text-gray-600 space-y-1">
+            <p>1 {fromCurrency} = {exchangeRate.toFixed(4)} {toCurrency}</p>
+            {lastUpdated && (
+              <p>Last updated: {lastUpdated.toLocaleTimeString()}</p>
+            )}
+          </div>
+        )}
+
+        {/* Refresh Button */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleRefresh}
+          disabled={isLoading}
+          className="w-full"
+        >
+          <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+          Refresh Rate
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+export default CurrencyConverter;

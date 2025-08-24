@@ -1,1 +1,232 @@
-import { useState } from 'react';\nimport { useParams } from 'wouter';\nimport { useQuery } from '@tanstack/react-query';\nimport { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';\nimport { Button } from '@/components/ui/button';\nimport { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';\nimport { BudgetDashboard } from '@/components/budget/budget-dashboard';\nimport { AddExpenseForm } from '@/components/budget/add-expense-form';\nimport { ArrowLeft, DollarSign, Plus, Calculator } from 'lucide-react';\nimport { Link } from 'wouter';\nimport type { Trip, Budget, Expense } from '@shared/schema';\n\nexport function BudgetPage() {\n  const { tripId } = useParams<{ tripId: string }>();\n  const [showAddExpense, setShowAddExpense] = useState(false);\n  const [showCreateBudget, setShowCreateBudget] = useState(false);\n  const [userCurrency] = useState('USD'); // This could come from user preferences\n\n  const tripIdNum = tripId ? parseInt(tripId) : 0;\n\n  // Fetch trip details\n  const { data: trip } = useQuery<Trip>({\n    queryKey: ['/api/trips', tripIdNum],\n    queryFn: () => fetch(`/api/trips/${tripIdNum}`).then(res => res.json()),\n    enabled: !!tripIdNum,\n  });\n\n  // Fetch budget\n  const { data: budget } = useQuery<Budget | null>({\n    queryKey: ['/api/trips', tripIdNum, 'budget'],\n    queryFn: () => fetch(`/api/trips/${tripIdNum}/budget`).then(res => {\n      if (res.status === 404) return null;\n      return res.json();\n    }),\n    enabled: !!tripIdNum,\n  });\n\n  // Fetch expenses\n  const { data: expenses = [] } = useQuery<Expense[]>({\n    queryKey: ['/api/trips', tripIdNum, 'expenses'],\n    queryFn: () => fetch(`/api/trips/${tripIdNum}/expenses`).then(res => res.json()),\n    enabled: !!tripIdNum,\n  });\n\n  if (!trip) {\n    return (\n      <div className=\"min-h-screen bg-gray-50 flex items-center justify-center\">\n        <div className=\"text-center\">\n          <h2 className=\"text-xl font-semibold mb-2\">Trip not found</h2>\n          <Link href=\"/\">\n            <Button variant=\"outline\">\n              <ArrowLeft className=\"w-4 h-4 mr-2\" />\n              Back to Home\n            </Button>\n          </Link>\n        </div>\n      </div>\n    );\n  }\n\n  return (\n    <div className=\"min-h-screen bg-gray-50\">\n      {/* Header */}\n      <div className=\"bg-white border-b\">\n        <div className=\"max-w-7xl mx-auto px-4 py-6\">\n          <div className=\"flex items-center justify-between\">\n            <div className=\"flex items-center space-x-4\">\n              <Link href={`/trip/${tripId}`}>\n                <Button variant=\"ghost\" size=\"sm\">\n                  <ArrowLeft className=\"w-4 h-4 mr-2\" />\n                  Back to Trip\n                </Button>\n              </Link>\n              <div>\n                <h1 className=\"text-2xl font-bold text-gray-900 flex items-center gap-2\">\n                  <DollarSign className=\"w-6 h-6 text-green-600\" />\n                  Budget Tracker\n                </h1>\n                <p className=\"text-gray-600 mt-1\">\n                  {trip.name} • {trip.destination}\n                </p>\n              </div>\n            </div>\n            \n            <div className=\"flex gap-2\">\n              {budget && (\n                <Button onClick={() => setShowAddExpense(true)}>\n                  <Plus className=\"w-4 h-4 mr-2\" />\n                  Add Expense\n                </Button>\n              )}\n              {!budget && (\n                <Button onClick={() => setShowCreateBudget(true)}>\n                  <Calculator className=\"w-4 h-4 mr-2\" />\n                  Create Budget\n                </Button>\n              )}\n            </div>\n          </div>\n        </div>\n      </div>\n\n      {/* Main Content */}\n      <div className=\"max-w-7xl mx-auto px-4 py-6\">\n        {showAddExpense && budget && (\n          <div className=\"mb-6\">\n            <AddExpenseForm\n              tripId={tripIdNum}\n              userId={1} // This should come from auth context\n              budgetId={budget.id}\n              defaultCurrency={userCurrency}\n              onSuccess={() => setShowAddExpense(false)}\n              onCancel={() => setShowAddExpense(false)}\n            />\n          </div>\n        )}\n\n        {showCreateBudget && (\n          <div className=\"mb-6\">\n            <CreateBudgetForm\n              tripId={tripIdNum}\n              userId={1} // This should come from auth context\n              defaultCurrency={userCurrency}\n              onSuccess={() => setShowCreateBudget(false)}\n              onCancel={() => setShowCreateBudget(false)}\n            />\n          </div>\n        )}\n\n        <Tabs defaultValue=\"dashboard\" className=\"space-y-6\">\n          <TabsList>\n            <TabsTrigger value=\"dashboard\">Dashboard</TabsTrigger>\n            <TabsTrigger value=\"expenses\">Expenses</TabsTrigger>\n            <TabsTrigger value=\"analytics\">Analytics</TabsTrigger>\n          </TabsList>\n\n          <TabsContent value=\"dashboard\">\n            <BudgetDashboard\n              tripId={tripIdNum}\n              userCurrency={userCurrency}\n              onAddExpense={() => setShowAddExpense(true)}\n              onViewDetails={() => {/* Switch to expenses tab */}}\n            />\n          </TabsContent>\n\n          <TabsContent value=\"expenses\">\n            <ExpensesList\n              expenses={expenses}\n              userCurrency={userCurrency}\n              onAddExpense={() => setShowAddExpense(true)}\n            />\n          </TabsContent>\n\n          <TabsContent value=\"analytics\">\n            <BudgetAnalytics\n              budget={budget}\n              expenses={expenses}\n              userCurrency={userCurrency}\n            />\n          </TabsContent>\n        </Tabs>\n      </div>\n    </div>\n  );\n}\n\n// Simple components for the budget features\nfunction CreateBudgetForm({ tripId, userId, defaultCurrency, onSuccess, onCancel }: {\n  tripId: number;\n  userId: number;\n  defaultCurrency: string;\n  onSuccess: () => void;\n  onCancel: () => void;\n}) {\n  return (\n    <Card>\n      <CardHeader>\n        <CardTitle>Create Trip Budget</CardTitle>\n      </CardHeader>\n      <CardContent>\n        <p className=\"text-gray-600 mb-4\">\n          Set up your budget categories and amounts for this trip.\n        </p>\n        <div className=\"flex gap-2\">\n          <Button onClick={onSuccess}>Create Budget</Button>\n          <Button variant=\"outline\" onClick={onCancel}>Cancel</Button>\n        </div>\n      </CardContent>\n    </Card>\n  );\n}\n\nfunction ExpensesList({ expenses, userCurrency, onAddExpense }: {\n  expenses: Expense[];\n  userCurrency: string;\n  onAddExpense: () => void;\n}) {\n  return (\n    <Card>\n      <CardHeader>\n        <div className=\"flex items-center justify-between\">\n          <CardTitle>Recent Expenses</CardTitle>\n          <Button onClick={onAddExpense}>\n            <Plus className=\"w-4 h-4 mr-2\" />\n            Add Expense\n          </Button>\n        </div>\n      </CardHeader>\n      <CardContent>\n        {expenses.length === 0 ? (\n          <p className=\"text-gray-500 text-center py-8\">\n            No expenses recorded yet. Start tracking your spending!\n          </p>\n        ) : (\n          <div className=\"space-y-2\">\n            {expenses.map((expense) => (\n              <div key={expense.id} className=\"flex items-center justify-between p-3 bg-gray-50 rounded-lg\">\n                <div>\n                  <h4 className=\"font-medium\">{expense.description}</h4>\n                  <p className=\"text-sm text-gray-600 capitalize\">{expense.category}</p>\n                </div>\n                <div className=\"text-right\">\n                  <p className=\"font-medium\">{parseFloat(expense.amount).toFixed(2)} {expense.currency}</p>\n                  <p className=\"text-sm text-gray-600\">{new Date(expense.date).toLocaleDateString()}</p>\n                </div>\n              </div>\n            ))}\n          </div>\n        )}\n      </CardContent>\n    </Card>\n  );\n}\n\nfunction BudgetAnalytics({ budget, expenses, userCurrency }: {\n  budget: Budget | null;\n  expenses: Expense[];\n  userCurrency: string;\n}) {\n  return (\n    <Card>\n      <CardHeader>\n        <CardTitle>Budget Analytics</CardTitle>\n      </CardHeader>\n      <CardContent>\n        <p className=\"text-gray-600\">\n          Detailed spending analysis and budget insights coming soon!\n        </p>\n      </CardContent>\n    </Card>\n  );\n}\n"
+import { useState } from 'react';
+import { useParams } from 'wouter';
+import { useQuery } from '@tanstack/react-query';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { BudgetDashboard } from '@/components/budget/budget-dashboard';
+import { AddExpenseForm } from '@/components/budget/add-expense-form';
+import { ArrowLeft, DollarSign, Plus, Calculator } from 'lucide-react';
+import { Link } from 'wouter';
+import type { Trip, Budget, Expense } from '@shared/schema';
+
+export function BudgetPage() {
+  const { tripId } = useParams<{ tripId: string }>();
+  const [showAddExpense, setShowAddExpense] = useState(false);
+  const [showCreateBudget, setShowCreateBudget] = useState(false);
+  const [userCurrency] = useState('USD'); // This could come from user preferences
+
+  const tripIdNum = tripId ? parseInt(tripId) : 0;
+
+  // Fetch trip details
+  const { data: trip } = useQuery<Trip>({
+    queryKey: ['/api/trips', tripIdNum],
+    queryFn: () => fetch(`/api/trips/${tripIdNum}`).then(res => res.json()),
+    enabled: !!tripIdNum,
+  });
+
+  // Fetch budget
+  const { data: budget } = useQuery<Budget | null>({
+    queryKey: ['/api/trips', tripIdNum, 'budget'],
+    queryFn: () => fetch(`/api/trips/${tripIdNum}/budget`).then(res => {
+      if (res.status === 404) return null;
+      return res.json();
+    }),
+    enabled: !!tripIdNum,
+  });
+
+  // Fetch expenses
+  const { data: expenses = [] } = useQuery<Expense[]>({
+    queryKey: ['/api/trips', tripIdNum, 'expenses'],
+    queryFn: () => fetch(`/api/trips/${tripIdNum}/expenses`).then(res => res.json()),
+    enabled: !!tripIdNum,
+  });
+
+  if (!trip) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold mb-2">Trip not found</h2>
+          <Link href="/trips">
+            <Button variant="outline">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Trips
+            </Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-6xl mx-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-4">
+            <Link href={`/trips/${tripId}`}>
+              <Button variant="outline" size="sm">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back to Trip
+              </Button>
+            </Link>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Trip Budget</h1>
+              <p className="text-gray-600">{trip.title}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <DollarSign className="w-6 h-6 text-green-600" />
+            <span className="text-sm text-gray-600">Currency: {userCurrency}</span>
+          </div>
+        </div>
+
+        {/* Add Expense Modal */}
+        {showAddExpense && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <AddExpenseForm
+              tripId={tripIdNum}
+              userId={1} // This should come from auth context
+              defaultCurrency={userCurrency}
+              onSuccess={() => setShowAddExpense(false)}
+              onCancel={() => setShowAddExpense(false)}
+            />
+          </div>
+        )}
+
+        {/* Create Budget Modal */}
+        {showCreateBudget && !budget && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <CreateBudgetForm
+              tripId={tripIdNum}
+              userId={1} // This should come from auth context
+              defaultCurrency={userCurrency}
+              onSuccess={() => setShowCreateBudget(false)}
+              onCancel={() => setShowCreateBudget(false)}
+            />
+          </div>
+        )}
+
+        <Tabs defaultValue="dashboard" className="space-y-6">
+          <TabsList>
+            <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+            <TabsTrigger value="expenses">Expenses</TabsTrigger>
+            <TabsTrigger value="analytics">Analytics</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="dashboard">
+            <BudgetDashboard
+              tripId={tripIdNum}
+              userCurrency={userCurrency}
+              onAddExpense={() => setShowAddExpense(true)}
+              onViewDetails={() => {/* Switch to expenses tab */}}
+            />
+          </TabsContent>
+
+          <TabsContent value="expenses">
+            <ExpensesList
+              expenses={expenses}
+              userCurrency={userCurrency}
+              onAddExpense={() => setShowAddExpense(true)}
+            />
+          </TabsContent>
+
+          <TabsContent value="analytics">
+            <BudgetAnalytics
+              budget={budget || null}
+              expenses={expenses}
+              userCurrency={userCurrency}
+            />
+          </TabsContent>
+        </Tabs>
+      </div>
+    </div>
+  );
+}
+
+// Simple components for the budget features
+function CreateBudgetForm({ tripId, userId, defaultCurrency, onSuccess, onCancel }: {
+  tripId: number;
+  userId: number;
+  defaultCurrency: string;
+  onSuccess: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Create Trip Budget</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p className="text-gray-600 mb-4">
+          Set up your budget categories and amounts for this trip.
+        </p>
+        <div className="flex gap-2">
+          <Button onClick={onSuccess}>Create Budget</Button>
+          <Button variant="outline" onClick={onCancel}>Cancel</Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ExpensesList({ expenses, userCurrency, onAddExpense }: {
+  expenses: Expense[];
+  userCurrency: string;
+  onAddExpense: () => void;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle>Recent Expenses</CardTitle>
+          <Button onClick={onAddExpense}>
+            <Plus className="w-4 h-4 mr-2" />
+            Add Expense
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {expenses.length === 0 ? (
+          <p className="text-gray-500 text-center py-8">
+            No expenses recorded yet. Start tracking your spending!
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {expenses.map((expense) => (
+              <div key={expense.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div>
+                  <h4 className="font-medium">{expense.description}</h4>
+                  <p className="text-sm text-gray-600 capitalize">{expense.category}</p>
+                </div>
+                <div className="text-right">
+                  <p className="font-medium">{parseFloat(expense.amount).toFixed(2)} {expense.currency}</p>
+                  <p className="text-sm text-gray-600">{new Date(expense.date).toLocaleDateString()}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function BudgetAnalytics({ budget, expenses, userCurrency }: {
+  budget: Budget | null;
+  expenses: Expense[];
+  userCurrency: string;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Budget Analytics</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p className="text-gray-600">
+          Detailed spending analysis and budget insights coming soon!
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
