@@ -186,5 +186,66 @@ export type InsertHotel = z.infer<typeof insertHotelSchema>;
 export type Place = typeof places.$inferSelect;
 export type InsertPlace = z.infer<typeof insertPlaceSchema>;
 
+// Budgets Schema
+export const budgets = pgTable("budgets", {
+  id: serial("id").primaryKey(),
+  tripId: integer("trip_id").notNull(),
+  userId: integer("user_id").notNull(),
+  totalBudget: decimal("total_budget", { precision: 10, scale: 2 }).notNull(),
+  currency: text("currency").notNull().default("USD"),
+  categories: jsonb("categories").notNull(), // {accommodation: 500, food: 300, transport: 200, etc.}
+  createdAt: timestamp("created_at").notNull(),
+  updatedAt: timestamp("updated_at").notNull(),
+});
+
+export const insertBudgetSchema = createInsertSchema(budgets).omit({
+  id: true,
+});
+
+// Expenses Schema
+export const expenses = pgTable("expenses", {
+  id: serial("id").primaryKey(),
+  tripId: integer("trip_id").notNull(),
+  userId: integer("user_id").notNull(),
+  budgetId: integer("budget_id"),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  originalAmount: decimal("original_amount", { precision: 10, scale: 2 }),
+  currency: text("currency").notNull().default("USD"),
+  originalCurrency: text("original_currency"),
+  category: text("category").notNull(), // accommodation, food, transport, activities, shopping, etc.
+  description: text("description").notNull(),
+  location: text("location"),
+  receiptUrl: text("receipt_url"),
+  date: timestamp("date").notNull(),
+  exchangeRate: decimal("exchange_rate", { precision: 10, scale: 6 }),
+  createdAt: timestamp("created_at").notNull(),
+});
+
+export const insertExpenseSchema = createInsertSchema(expenses).omit({
+  id: true,
+});
+
+// Currency Rates Schema (for caching exchange rates)
+export const currencyRates = pgTable("currency_rates", {
+  id: serial("id").primaryKey(),
+  baseCurrency: text("base_currency").notNull(),
+  targetCurrency: text("target_currency").notNull(),
+  rate: decimal("rate", { precision: 10, scale: 6 }).notNull(),
+  lastUpdated: timestamp("last_updated").notNull(),
+});
+
+export const insertCurrencyRateSchema = createInsertSchema(currencyRates).omit({
+  id: true,
+});
+
 export type Review = typeof reviews.$inferSelect;
 export type InsertReview = z.infer<typeof insertReviewSchema>;
+
+export type Budget = typeof budgets.$inferSelect;
+export type InsertBudget = z.infer<typeof insertBudgetSchema>;
+
+export type Expense = typeof expenses.$inferSelect;
+export type InsertExpense = z.infer<typeof insertExpenseSchema>;
+
+export type CurrencyRate = typeof currencyRates.$inferSelect;
+export type InsertCurrencyRate = z.infer<typeof insertCurrencyRateSchema>;

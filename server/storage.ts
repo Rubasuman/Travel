@@ -7,7 +7,10 @@ import {
   notifications, type Notification, type InsertNotification,
   hotels, type Hotel, type InsertHotel,
   places, type Place, type InsertPlace,
-  reviews, type Review, type InsertReview
+  reviews, type Review, type InsertReview,
+  budgets, type Budget, type InsertBudget,
+  expenses, type Expense, type InsertExpense,
+  currencyRates, type CurrencyRate, type InsertCurrencyRate
 } from "@shared/schema";
 
 export interface IStorage {
@@ -62,6 +65,26 @@ export interface IStorage {
   createReview(review: InsertReview): Promise<Review>;
   updateReview(id: number, review: Partial<Review>): Promise<Review | undefined>;
   deleteReview(id: number): Promise<boolean>;
+  
+  // Budget operations
+  getBudgets(tripId: number): Promise<Budget[]>;
+  getBudget(id: number): Promise<Budget | undefined>;
+  getBudgetByTrip(tripId: number): Promise<Budget | undefined>;
+  createBudget(budget: InsertBudget): Promise<Budget>;
+  updateBudget(id: number, budget: Partial<Budget>): Promise<Budget | undefined>;
+  deleteBudget(id: number): Promise<boolean>;
+  
+  // Expense operations
+  getExpenses(tripId: number): Promise<Expense[]>;
+  getExpensesByBudget(budgetId: number): Promise<Expense[]>;
+  getExpense(id: number): Promise<Expense | undefined>;
+  createExpense(expense: InsertExpense): Promise<Expense>;
+  updateExpense(id: number, expense: Partial<Expense>): Promise<Expense | undefined>;
+  deleteExpense(id: number): Promise<boolean>;
+  
+  // Currency operations
+  getCurrencyRate(baseCurrency: string, targetCurrency: string): Promise<CurrencyRate | undefined>;
+  createOrUpdateCurrencyRate(rate: InsertCurrencyRate): Promise<CurrencyRate>;
 }
 
 export class MemStorage implements IStorage {
@@ -74,6 +97,9 @@ export class MemStorage implements IStorage {
   private hotels: Map<number, Hotel>;
   private places: Map<number, Place>;
   private reviews: Map<number, Review>;
+  private budgets: Map<number, Budget>;
+  private expenses: Map<number, Expense>;
+  private currencyRates: Map<string, CurrencyRate>;
   
   private currentUserId: number;
   private currentDestinationId: number;
@@ -84,6 +110,9 @@ export class MemStorage implements IStorage {
   private currentHotelId: number;
   private currentPlaceId: number;
   private currentReviewId: number;
+  private currentBudgetId: number;
+  private currentExpenseId: number;
+  private currentCurrencyRateId: number;
 
   constructor() {
     this.users = new Map();
@@ -95,6 +124,9 @@ export class MemStorage implements IStorage {
     this.hotels = new Map();
     this.places = new Map();
     this.reviews = new Map();
+    this.budgets = new Map();
+    this.expenses = new Map();
+    this.currencyRates = new Map();
     
     this.currentUserId = 1;
     this.currentDestinationId = 1;
@@ -105,6 +137,9 @@ export class MemStorage implements IStorage {
     this.currentHotelId = 1;
     this.currentPlaceId = 1;
     this.currentReviewId = 1;
+    this.currentBudgetId = 1;
+    this.currentExpenseId = 1;
+    this.currentCurrencyRateId = 1;
     
     // Add sample data
     this.seedDestinations();
@@ -375,6 +410,105 @@ export class MemStorage implements IStorage {
 
   async deleteReview(id: number): Promise<boolean> {
     return this.reviews.delete(id);
+  }
+
+  // Budget operations
+  async getBudgets(tripId: number): Promise<Budget[]> {
+    return Array.from(this.budgets.values()).filter(budget => budget.tripId === tripId);
+  }
+
+  async getBudget(id: number): Promise<Budget | undefined> {
+    return this.budgets.get(id);
+  }
+
+  async getBudgetByTrip(tripId: number): Promise<Budget | undefined> {
+    return Array.from(this.budgets.values()).find(budget => budget.tripId === tripId);
+  }
+
+  async createBudget(budget: InsertBudget): Promise<Budget> {
+    const id = this.currentBudgetId++;
+    const newBudget: Budget = { 
+      ...budget, 
+      id,
+      createdAt: budget.createdAt || new Date(),
+      updatedAt: budget.updatedAt || new Date()
+    };
+    this.budgets.set(id, newBudget);
+    return newBudget;
+  }
+
+  async updateBudget(id: number, budgetUpdate: Partial<Budget>): Promise<Budget | undefined> {
+    const budget = this.budgets.get(id);
+    if (!budget) return undefined;
+    
+    const updatedBudget = { ...budget, ...budgetUpdate, updatedAt: new Date() };
+    this.budgets.set(id, updatedBudget);
+    return updatedBudget;
+  }
+
+  async deleteBudget(id: number): Promise<boolean> {
+    return this.budgets.delete(id);
+  }
+
+  // Expense operations
+  async getExpenses(tripId: number): Promise<Expense[]> {
+    return Array.from(this.expenses.values()).filter(expense => expense.tripId === tripId);
+  }
+
+  async getExpensesByBudget(budgetId: number): Promise<Expense[]> {
+    return Array.from(this.expenses.values()).filter(expense => expense.budgetId === budgetId);
+  }
+
+  async getExpense(id: number): Promise<Expense | undefined> {
+    return this.expenses.get(id);
+  }
+
+  async createExpense(expense: InsertExpense): Promise<Expense> {
+    const id = this.currentExpenseId++;
+    const newExpense: Expense = { 
+      ...expense, 
+      id,
+      budgetId: expense.budgetId ?? null,
+      originalAmount: expense.originalAmount ?? null,
+      originalCurrency: expense.originalCurrency ?? null,
+      location: expense.location ?? null,
+      receiptUrl: expense.receiptUrl ?? null,
+      exchangeRate: expense.exchangeRate ?? null,
+      createdAt: expense.createdAt || new Date()
+    };
+    this.expenses.set(id, newExpense);
+    return newExpense;
+  }
+
+  async updateExpense(id: number, expenseUpdate: Partial<Expense>): Promise<Expense | undefined> {
+    const expense = this.expenses.get(id);
+    if (!expense) return undefined;
+    
+    const updatedExpense = { ...expense, ...expenseUpdate };
+    this.expenses.set(id, updatedExpense);
+    return updatedExpense;
+  }
+
+  async deleteExpense(id: number): Promise<boolean> {
+    return this.expenses.delete(id);
+  }
+
+  // Currency operations
+  async getCurrencyRate(baseCurrency: string, targetCurrency: string): Promise<CurrencyRate | undefined> {
+    const key = `${baseCurrency}-${targetCurrency}`;
+    return this.currencyRates.get(key);
+  }
+
+  async createOrUpdateCurrencyRate(rate: InsertCurrencyRate): Promise<CurrencyRate> {
+    const key = `${rate.baseCurrency}-${rate.targetCurrency}`;
+    const id = this.currentCurrencyRateId++;
+    const newRate: CurrencyRate = { 
+      ...rate, 
+      id,
+      lastUpdated: rate.lastUpdated || new Date()
+    };
+    this.currencyRates.set(key, newRate);
+    return newRate;
   }
 
   // Seed data

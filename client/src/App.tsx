@@ -10,6 +10,7 @@ import Destinations from "@/pages/destinations";
 import Trips from "@/pages/trips";
 import TripDetails from "@/pages/trip-details";
 import DestinationDetails from "@/pages/destination-details";
+import { BudgetPage } from "@/pages/budget";
 import Gallery from "@/pages/gallery";
 import Notifications from "@/pages/notifications";
 import FirebaseTest from "@/pages/firebase-test";
@@ -43,6 +44,11 @@ function Router() {
       <Route path="/trips/:id" component={({ params }) => (
         <ProtectedRoute>
           <TripDetails id={parseInt(params.id)} />
+        </ProtectedRoute>
+      )} />
+      <Route path="/trips/:tripId/budget" component={() => (
+        <ProtectedRoute>
+          <BudgetPage />
         </ProtectedRoute>
       )} />
       <Route path="/gallery" component={() => (

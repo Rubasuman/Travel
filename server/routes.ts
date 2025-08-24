@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertUserSchema, insertTripSchema, insertItinerarySchema, insertPhotoSchema, insertNotificationSchema, insertHotelSchema, insertPlaceSchema, insertReviewSchema } from "@shared/schema";
+import { insertUserSchema, insertTripSchema, insertItinerarySchema, insertPhotoSchema, insertNotificationSchema, insertHotelSchema, insertPlaceSchema, insertReviewSchema, insertBudgetSchema, insertExpenseSchema, insertCurrencyRateSchema } from "@shared/schema";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -448,6 +448,102 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ message: "Failed to delete review" });
+    }
+  });
+
+  // Budget routes
+  app.get('/api/trips/:tripId/budget', async (req, res) => {
+    try {
+      const tripId = parseInt(req.params.tripId);
+      const budget = await storage.getBudgetByTrip(tripId);
+      res.json(budget);
+    } catch (error) {
+      console.error('Get budget error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+  
+  app.post('/api/trips/:tripId/budget', async (req, res) => {
+    try {
+      const tripId = parseInt(req.params.tripId);
+      const budgetData = { ...req.body, tripId };
+      const result = insertBudgetSchema.safeParse(budgetData);
+      if (!result.success) {
+        return res.status(400).json({ error: result.error.issues });
+      }
+      const budget = await storage.createBudget(result.data);
+      res.status(201).json(budget);
+    } catch (error) {
+      console.error('Create budget error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+  
+  app.put('/api/budgets/:id', async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const budget = await storage.updateBudget(id, req.body);
+      if (!budget) {
+        return res.status(404).json({ error: 'Budget not found' });
+      }
+      res.json(budget);
+    } catch (error) {
+      console.error('Update budget error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+  
+  // Expense routes
+  app.get('/api/trips/:tripId/expenses', async (req, res) => {
+    try {
+      const tripId = parseInt(req.params.tripId);
+      const expenses = await storage.getExpenses(tripId);
+      res.json(expenses);
+    } catch (error) {
+      console.error('Get expenses error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+  
+  app.post('/api/expenses', async (req, res) => {
+    try {
+      const result = insertExpenseSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({ error: result.error.issues });
+      }
+      const expense = await storage.createExpense(result.data);
+      res.status(201).json(expense);
+    } catch (error) {
+      console.error('Create expense error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+  
+  app.put('/api/expenses/:id', async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const expense = await storage.updateExpense(id, req.body);
+      if (!expense) {
+        return res.status(404).json({ error: 'Expense not found' });
+      }
+      res.json(expense);
+    } catch (error) {
+      console.error('Update expense error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+  
+  app.delete('/api/expenses/:id', async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const success = await storage.deleteExpense(id);
+      if (!success) {
+        return res.status(404).json({ error: 'Expense not found' });
+      }
+      res.status(204).send();
+    } catch (error) {
+      console.error('Delete expense error:', error);
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 
