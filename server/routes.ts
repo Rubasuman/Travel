@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertUserSchema, insertTripSchema, insertItinerarySchema, insertPhotoSchema, insertNotificationSchema } from "@shared/schema";
+import { insertUserSchema, insertTripSchema, insertItinerarySchema, insertPhotoSchema, insertNotificationSchema, insertHotelSchema, insertPlaceSchema, insertReviewSchema } from "@shared/schema";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -289,6 +289,165 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(200).json({ success: true });
     } catch (error) {
       res.status(500).json({ message: "Failed to mark notification as read" });
+    }
+  });
+  
+  // Hotels API
+  app.get("/api/destinations/:destinationId/hotels", async (req: Request, res: Response) => {
+    try {
+      const destinationId = parseInt(req.params.destinationId);
+      const hotels = await storage.getHotels(destinationId);
+      res.status(200).json(hotels);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get hotels" });
+    }
+  });
+  
+  app.get("/api/hotels/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const hotel = await storage.getHotel(id);
+      
+      if (!hotel) {
+        return res.status(404).json({ message: "Hotel not found" });
+      }
+      
+      res.status(200).json(hotel);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get hotel" });
+    }
+  });
+  
+  app.post("/api/hotels", async (req: Request, res: Response) => {
+    try {
+      const hotelPayload = insertHotelSchema.parse(req.body);
+      const hotel = await storage.createHotel(hotelPayload);
+      res.status(201).json(hotel);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid hotel data", errors: error.errors });
+      }
+      res.status(500).json({ message: "Failed to create hotel" });
+    }
+  });
+  
+  // Places API
+  app.get("/api/destinations/:destinationId/places", async (req: Request, res: Response) => {
+    try {
+      const destinationId = parseInt(req.params.destinationId);
+      const places = await storage.getPlaces(destinationId);
+      res.status(200).json(places);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get places" });
+    }
+  });
+  
+  app.get("/api/places/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const place = await storage.getPlace(id);
+      
+      if (!place) {
+        return res.status(404).json({ message: "Place not found" });
+      }
+      
+      res.status(200).json(place);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get place" });
+    }
+  });
+  
+  app.post("/api/places", async (req: Request, res: Response) => {
+    try {
+      const placePayload = insertPlaceSchema.parse(req.body);
+      const place = await storage.createPlace(placePayload);
+      res.status(201).json(place);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid place data", errors: error.errors });
+      }
+      res.status(500).json({ message: "Failed to create place" });
+    }
+  });
+  
+  // Reviews API
+  app.get("/api/reviews", async (req: Request, res: Response) => {
+    try {
+      const hotelId = req.query.hotelId ? parseInt(req.query.hotelId as string) : undefined;
+      const placeId = req.query.placeId ? parseInt(req.query.placeId as string) : undefined;
+      const reviews = await storage.getReviews(hotelId, placeId);
+      res.status(200).json(reviews);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get reviews" });
+    }
+  });
+  
+  app.get("/api/reviews/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const review = await storage.getReview(id);
+      
+      if (!review) {
+        return res.status(404).json({ message: "Review not found" });
+      }
+      
+      res.status(200).json(review);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get review" });
+    }
+  });
+  
+  app.post("/api/reviews", async (req: Request, res: Response) => {
+    try {
+      // Convert ISO date strings to Date objects
+      const body = { ...req.body };
+      if (typeof body.createdAt === 'string') {
+        body.createdAt = new Date(body.createdAt);
+      }
+      if (typeof body.updatedAt === 'string') {
+        body.updatedAt = new Date(body.updatedAt);
+      }
+      
+      const reviewPayload = insertReviewSchema.parse(body);
+      const review = await storage.createReview(reviewPayload);
+      res.status(201).json(review);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid review data", errors: error.errors });
+      }
+      res.status(500).json({ message: "Failed to create review" });
+    }
+  });
+  
+  app.patch("/api/reviews/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const updateData = req.body;
+      
+      const updatedReview = await storage.updateReview(id, updateData);
+      
+      if (!updatedReview) {
+        return res.status(404).json({ message: "Review not found" });
+      }
+      
+      res.status(200).json(updatedReview);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update review" });
+    }
+  });
+  
+  app.delete("/api/reviews/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const success = await storage.deleteReview(id);
+      
+      if (!success) {
+        return res.status(404).json({ message: "Review not found" });
+      }
+      
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete review" });
     }
   });
 

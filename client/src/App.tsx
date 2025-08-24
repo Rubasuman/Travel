@@ -9,6 +9,7 @@ import Dashboard from "@/pages/dashboard";
 import Destinations from "@/pages/destinations";
 import Trips from "@/pages/trips";
 import TripDetails from "@/pages/trip-details";
+import DestinationDetails from "@/pages/destination-details";
 import Gallery from "@/pages/gallery";
 import Notifications from "@/pages/notifications";
 import FirebaseTest from "@/pages/firebase-test";
@@ -27,6 +28,11 @@ function Router() {
       <Route path="/destinations" component={() => (
         <ProtectedRoute>
           <Destinations />
+        </ProtectedRoute>
+      )} />
+      <Route path="/destinations/:id" component={() => (
+        <ProtectedRoute>
+          <DestinationDetails />
         </ProtectedRoute>
       )} />
       <Route path="/trips" component={() => (

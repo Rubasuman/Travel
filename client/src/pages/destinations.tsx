@@ -24,7 +24,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Star, MapPin, Search } from "lucide-react";
+import { Star, MapPin, Search, Eye } from "lucide-react";
+import { Link } from "wouter";
 import AddTripForm from "@/components/trips/add-trip-form";
 
 export default function Destinations() {
@@ -140,12 +141,20 @@ export default function Destinations() {
                   <p className="text-gray-600 text-sm mb-4 line-clamp-3">
                     {destination.description}
                   </p>
-                  <Button 
-                    className="w-full" 
-                    onClick={() => handlePlanTrip(destination)}
-                  >
-                    Plan a Trip
-                  </Button>
+                  <div className="flex gap-2">
+                    <Link href={`/destinations/${destination.id}`} className="flex-1">
+                      <Button variant="outline" className="w-full">
+                        <Eye className="w-4 h-4 mr-2" />
+                        View Details
+                      </Button>
+                    </Link>
+                    <Button
+                      onClick={() => handlePlanTrip(destination)}
+                      className="flex-1"
+                    >
+                      Plan a Trip
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             ))}

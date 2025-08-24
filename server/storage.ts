@@ -4,7 +4,10 @@ import {
   trips, type Trip, type InsertTrip,
   itineraries, type Itinerary, type InsertItinerary,
   photos, type Photo, type InsertPhoto,
-  notifications, type Notification, type InsertNotification
+  notifications, type Notification, type InsertNotification,
+  hotels, type Hotel, type InsertHotel,
+  places, type Place, type InsertPlace,
+  reviews, type Review, type InsertReview
 } from "@shared/schema";
 
 export interface IStorage {
@@ -42,6 +45,23 @@ export interface IStorage {
   getNotifications(userId: number): Promise<Notification[]>;
   createNotification(notification: InsertNotification): Promise<Notification>;
   markNotificationAsRead(id: number): Promise<boolean>;
+  
+  // Hotel operations
+  getHotels(destinationId: number): Promise<Hotel[]>;
+  getHotel(id: number): Promise<Hotel | undefined>;
+  createHotel(hotel: InsertHotel): Promise<Hotel>;
+  
+  // Place operations
+  getPlaces(destinationId: number): Promise<Place[]>;
+  getPlace(id: number): Promise<Place | undefined>;
+  createPlace(place: InsertPlace): Promise<Place>;
+  
+  // Review operations
+  getReviews(hotelId?: number, placeId?: number): Promise<Review[]>;
+  getReview(id: number): Promise<Review | undefined>;
+  createReview(review: InsertReview): Promise<Review>;
+  updateReview(id: number, review: Partial<Review>): Promise<Review | undefined>;
+  deleteReview(id: number): Promise<boolean>;
 }
 
 export class MemStorage implements IStorage {
@@ -51,6 +71,9 @@ export class MemStorage implements IStorage {
   private itineraries: Map<number, Itinerary>;
   private photos: Map<number, Photo>;
   private notifications: Map<number, Notification>;
+  private hotels: Map<number, Hotel>;
+  private places: Map<number, Place>;
+  private reviews: Map<number, Review>;
   
   private currentUserId: number;
   private currentDestinationId: number;
@@ -58,6 +81,9 @@ export class MemStorage implements IStorage {
   private currentItineraryId: number;
   private currentPhotoId: number;
   private currentNotificationId: number;
+  private currentHotelId: number;
+  private currentPlaceId: number;
+  private currentReviewId: number;
 
   constructor() {
     this.users = new Map();
@@ -66,6 +92,9 @@ export class MemStorage implements IStorage {
     this.itineraries = new Map();
     this.photos = new Map();
     this.notifications = new Map();
+    this.hotels = new Map();
+    this.places = new Map();
+    this.reviews = new Map();
     
     this.currentUserId = 1;
     this.currentDestinationId = 1;
@@ -73,9 +102,13 @@ export class MemStorage implements IStorage {
     this.currentItineraryId = 1;
     this.currentPhotoId = 1;
     this.currentNotificationId = 1;
+    this.currentHotelId = 1;
+    this.currentPlaceId = 1;
+    this.currentReviewId = 1;
     
-    // Add sample destinations
+    // Add sample data
     this.seedDestinations();
+    this.seedHotelsAndPlaces();
   }
 
   // User operations
@@ -89,7 +122,12 @@ export class MemStorage implements IStorage {
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = this.currentUserId++;
-    const user: User = { ...insertUser, id };
+    const user: User = { 
+      ...insertUser, 
+      id,
+      photoURL: insertUser.photoURL ?? null,
+      displayName: insertUser.displayName ?? null
+    };
     this.users.set(id, user);
     return user;
   }
@@ -105,7 +143,19 @@ export class MemStorage implements IStorage {
 
   async createDestination(destination: InsertDestination): Promise<Destination> {
     const id = this.currentDestinationId++;
-    const newDestination: Destination = { ...destination, id };
+    const newDestination: Destination = { 
+      ...destination, 
+      id,
+      city: destination.city ?? null,
+      description: destination.description ?? null,
+      imageUrl: destination.imageUrl ?? null,
+      latitude: destination.latitude ?? null,
+      longitude: destination.longitude ?? null,
+      rating: destination.rating ?? null,
+      category: destination.category ?? null,
+      address: destination.address ?? null,
+      mapUrl: destination.mapUrl ?? null
+    };
     this.destinations.set(id, newDestination);
     return newDestination;
   }
@@ -121,7 +171,14 @@ export class MemStorage implements IStorage {
 
   async createTrip(trip: InsertTrip): Promise<Trip> {
     const id = this.currentTripId++;
-    const newTrip: Trip = { ...trip, id };
+    const newTrip: Trip = { 
+      ...trip, 
+      id,
+      description: trip.description ?? null,
+      imageUrl: trip.imageUrl ?? null,
+      activities: trip.activities ?? null,
+      isFavorite: trip.isFavorite ?? null
+    };
     this.trips.set(id, newTrip);
     return newTrip;
   }
@@ -150,7 +207,11 @@ export class MemStorage implements IStorage {
 
   async createItinerary(itinerary: InsertItinerary): Promise<Itinerary> {
     const id = this.currentItineraryId++;
-    const newItinerary: Itinerary = { ...itinerary, id };
+    const newItinerary: Itinerary = { 
+      ...itinerary, 
+      id,
+      notes: itinerary.notes ?? null
+    };
     this.itineraries.set(id, newItinerary);
     return newItinerary;
   }
@@ -179,7 +240,12 @@ export class MemStorage implements IStorage {
 
   async createPhoto(photo: InsertPhoto): Promise<Photo> {
     const id = this.currentPhotoId++;
-    const newPhoto: Photo = { ...photo, id };
+    const newPhoto: Photo = { 
+      ...photo, 
+      id,
+      tripId: photo.tripId ?? null,
+      caption: photo.caption ?? null
+    };
     this.photos.set(id, newPhoto);
     return newPhoto;
   }
@@ -197,7 +263,11 @@ export class MemStorage implements IStorage {
 
   async createNotification(notification: InsertNotification): Promise<Notification> {
     const id = this.currentNotificationId++;
-    const newNotification: Notification = { ...notification, id };
+    const newNotification: Notification = { 
+      ...notification, 
+      id,
+      isRead: notification.isRead ?? null
+    };
     this.notifications.set(id, newNotification);
     return newNotification;
   }
@@ -211,77 +281,231 @@ export class MemStorage implements IStorage {
     return true;
   }
 
+  // Hotel operations
+  async getHotels(destinationId: number): Promise<Hotel[]> {
+    return Array.from(this.hotels.values()).filter(hotel => hotel.destinationId === destinationId);
+  }
+
+  async getHotel(id: number): Promise<Hotel | undefined> {
+    return this.hotels.get(id);
+  }
+
+  async createHotel(hotel: InsertHotel): Promise<Hotel> {
+    const id = this.currentHotelId++;
+    const newHotel: Hotel = { 
+      ...hotel, 
+      id,
+      rating: hotel.rating ?? null,
+      pricePerNight: hotel.pricePerNight ?? null,
+      description: hotel.description ?? null,
+      amenities: hotel.amenities ?? [],
+      imageUrls: hotel.imageUrls ?? [],
+      virtual360Url: hotel.virtual360Url ?? null,
+      website: hotel.website ?? null,
+      phone: hotel.phone ?? null
+    };
+    this.hotels.set(id, newHotel);
+    return newHotel;
+  }
+
+  // Place operations
+  async getPlaces(destinationId: number): Promise<Place[]> {
+    return Array.from(this.places.values()).filter(place => place.destinationId === destinationId);
+  }
+
+  async getPlace(id: number): Promise<Place | undefined> {
+    return this.places.get(id);
+  }
+
+  async createPlace(place: InsertPlace): Promise<Place> {
+    const id = this.currentPlaceId++;
+    const newPlace: Place = { 
+      ...place, 
+      id,
+      rating: place.rating ?? null,
+      description: place.description ?? null,
+      imageUrls: place.imageUrls ?? [],
+      virtual360Url: place.virtual360Url ?? null,
+      website: place.website ?? null,
+      phone: place.phone ?? null,
+      openingHours: place.openingHours ?? null,
+      priceRange: place.priceRange ?? null
+    };
+    this.places.set(id, newPlace);
+    return newPlace;
+  }
+
+  // Review operations
+  async getReviews(hotelId?: number, placeId?: number): Promise<Review[]> {
+    return Array.from(this.reviews.values()).filter(review => {
+      if (hotelId) return review.hotelId === hotelId;
+      if (placeId) return review.placeId === placeId;
+      return true;
+    });
+  }
+
+  async getReview(id: number): Promise<Review | undefined> {
+    return this.reviews.get(id);
+  }
+
+  async createReview(review: InsertReview): Promise<Review> {
+    const id = this.currentReviewId++;
+    const newReview: Review = { 
+      ...review, 
+      id,
+      hotelId: review.hotelId ?? null,
+      placeId: review.placeId ?? null,
+      title: review.title ?? null,
+      imageUrls: review.imageUrls ?? [],
+      virtual360Url: review.virtual360Url ?? null,
+      isVerified: review.isVerified ?? null
+    };
+    this.reviews.set(id, newReview);
+    return newReview;
+  }
+
+  async updateReview(id: number, reviewUpdate: Partial<Review>): Promise<Review | undefined> {
+    const review = this.reviews.get(id);
+    if (!review) return undefined;
+    
+    const updatedReview = { ...review, ...reviewUpdate };
+    this.reviews.set(id, updatedReview);
+    return updatedReview;
+  }
+
+  async deleteReview(id: number): Promise<boolean> {
+    return this.reviews.delete(id);
+  }
+
   // Seed data
   private seedDestinations() {
     const destinations: InsertDestination[] = [
       {
         name: "Paris",
         country: "France",
+        city: "Paris",
         description: "Experience the city of love with its iconic landmarks and romantic atmosphere.",
         imageUrl: "https://images.unsplash.com/photo-1523906834658-6e24ef2386f9?ixlib=rb-1.2.1&auto=format&fit=crop&w=900&q=80",
-        rating: 5,
-        category: "City"
+        latitude: "48.8566",
+        longitude: "2.3522",
+        rating: "4.8",
+        category: "City",
+        address: "Paris, France"
       },
       {
         name: "Rome",
         country: "Italy",
+        city: "Rome",
         description: "Explore ancient ruins and experience the rich history of the Eternal City.",
         imageUrl: "https://images.unsplash.com/photo-1526392060635-9d6019884377?ixlib=rb-1.2.1&auto=format&fit=crop&w=600&q=80",
-        rating: 5,
-        category: "Historical"
+        latitude: "41.9028",
+        longitude: "12.4964",
+        rating: "4.7",
+        category: "Historical",
+        address: "Rome, Italy"
       },
       {
         name: "Santorini",
         country: "Greece",
+        city: "Santorini",
         description: "Enjoy breathtaking sunsets and stunning views of the Aegean Sea.",
         imageUrl: "https://images.unsplash.com/photo-1582050041567-9cfdd330d545?ixlib=rb-1.2.1&auto=format&fit=crop&w=600&q=80",
-        rating: 5,
-        category: "Beach"
+        latitude: "36.3932",
+        longitude: "25.4615",
+        rating: "4.9",
+        category: "Beach",
+        address: "Santorini, Greece"
       },
       {
         name: "New York",
         country: "USA",
+        city: "New York",
         description: "Explore the city that never sleeps with its iconic skyline and vibrant atmosphere.",
         imageUrl: "https://images.unsplash.com/photo-1543832923-44667a44c804?ixlib=rb-1.2.1&auto=format&fit=crop&w=600&q=80",
-        rating: 5,
-        category: "City"
-      },
-      {
-        name: "Kyoto",
-        country: "Japan",
-        description: "Experience the traditional side of Japan with ancient temples and beautiful gardens.",
-        imageUrl: "https://images.unsplash.com/photo-1528181304800-259b08848526?ixlib=rb-1.2.1&auto=format&fit=crop&w=600&q=80",
-        rating: 5,
-        category: "Cultural"
-      },
-      {
-        name: "Barcelona",
-        country: "Spain",
-        description: "Discover the unique architecture of Gaudi and enjoy the Mediterranean lifestyle.",
-        imageUrl: "https://images.unsplash.com/photo-1602002418082-dd4a3693d2c1?ixlib=rb-1.2.1&auto=format&fit=crop&w=600&q=80",
-        rating: 5,
-        category: "Architecture"
-      },
-      {
-        name: "Bali",
-        country: "Indonesia",
-        description: "Explore tropical beaches, volcanic mountains, and unique cultural experiences.",
-        imageUrl: "https://images.unsplash.com/photo-1538332576228-eb5b4c4de6a5?ixlib=rb-1.2.1&auto=format&fit=crop&w=900&q=80",
-        rating: 5,
-        category: "Beach"
+        latitude: "40.7128",
+        longitude: "-74.0060",
+        rating: "4.6",
+        category: "City",
+        address: "New York, NY, USA"
       },
       {
         name: "Tokyo",
         country: "Japan",
+        city: "Tokyo",
         description: "Discover the perfect blend of traditional culture and futuristic cityscape.",
         imageUrl: "https://images.unsplash.com/photo-1533106497176-45ae19e68ba2?ixlib=rb-1.2.1&auto=format&fit=crop&w=900&q=80",
-        rating: 5,
-        category: "City"
+        latitude: "35.6762",
+        longitude: "139.6503",
+        rating: "4.8",
+        category: "City",
+        address: "Tokyo, Japan"
       }
     ];
 
     destinations.forEach(destination => {
       this.createDestination(destination);
+    });
+  }
+
+  private seedHotelsAndPlaces() {
+    // Paris hotels and places
+    this.createHotel({
+      name: "Hotel Ritz Paris",
+      destinationId: 1,
+      address: "15 Place Vendôme, 75001 Paris, France",
+      latitude: "48.8680",
+      longitude: "2.3299",
+      rating: "4.9",
+      pricePerNight: "800.00",
+      description: "Luxury hotel in the heart of Paris with world-class amenities.",
+      amenities: ["Spa", "Restaurant", "Bar", "Concierge", "Room Service"],
+      imageUrls: ["https://images.unsplash.com/photo-1564501049412-61c2a3083791?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80"],
+      website: "https://www.ritzparis.com",
+      phone: "+33 1 43 16 30 30"
+    });
+
+    this.createPlace({
+      name: "Eiffel Tower",
+      destinationId: 1,
+      address: "Champ de Mars, 5 Avenue Anatole France, 75007 Paris, France",
+      latitude: "48.8584",
+      longitude: "2.2945",
+      category: "Attraction",
+      rating: "4.6",
+      description: "Iconic iron lattice tower and symbol of Paris.",
+      imageUrls: ["https://images.unsplash.com/photo-1511739001486-6bfe10ce785f?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80"],
+      openingHours: {"monday": "9:30-23:45", "tuesday": "9:30-23:45", "wednesday": "9:30-23:45", "thursday": "9:30-23:45", "friday": "9:30-23:45", "saturday": "9:30-23:45", "sunday": "9:30-23:45"},
+      priceRange: "$$"
+    });
+
+    // Tokyo hotels and places
+    this.createHotel({
+      name: "Park Hyatt Tokyo",
+      destinationId: 5,
+      address: "3-7-1-2 Nishi-Shinjuku, Shinjuku City, Tokyo 163-1055, Japan",
+      latitude: "35.6859",
+      longitude: "139.6917",
+      rating: "4.8",
+      pricePerNight: "600.00",
+      description: "Luxury hotel with stunning city views and world-class service.",
+      amenities: ["Spa", "Fitness Center", "Pool", "Restaurant", "Bar"],
+      imageUrls: ["https://images.unsplash.com/photo-1590490360182-c33d57733427?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80"],
+      website: "https://www.hyatt.com",
+      phone: "+81 3-5322-1234"
+    });
+
+    this.createPlace({
+      name: "Senso-ji Temple",
+      destinationId: 5,
+      address: "2-3-1 Asakusa, Taito City, Tokyo 111-0032, Japan",
+      latitude: "35.7148",
+      longitude: "139.7967",
+      category: "Temple",
+      rating: "4.5",
+      description: "Tokyo's oldest temple with traditional architecture and cultural significance.",
+      imageUrls: ["https://images.unsplash.com/photo-1528181304800-259b08848526?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80"],
+      openingHours: {"monday": "6:00-17:00", "tuesday": "6:00-17:00", "wednesday": "6:00-17:00", "thursday": "6:00-17:00", "friday": "6:00-17:00", "saturday": "6:00-17:00", "sunday": "6:00-17:00"},
+      priceRange: "Free"
     });
   }
 }
