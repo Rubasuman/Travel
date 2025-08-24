@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb, decimal } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -21,10 +21,15 @@ export const destinations = pgTable("destinations", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   country: text("country").notNull(),
+  city: text("city"),
   description: text("description"),
   imageUrl: text("image_url"),
-  rating: integer("rating"),
+  latitude: decimal("latitude", { precision: 10, scale: 8 }),
+  longitude: decimal("longitude", { precision: 11, scale: 8 }),
+  rating: decimal("rating", { precision: 3, scale: 2 }),
   category: text("category"), // e.g. Beach, City, Mountain, etc.
+  address: text("address"),
+  mapUrl: text("map_url"),
 });
 
 export const insertDestinationSchema = createInsertSchema(destinations).omit({
@@ -107,5 +112,79 @@ export type InsertItinerary = z.infer<typeof insertItinerarySchema>;
 export type Photo = typeof photos.$inferSelect;
 export type InsertPhoto = z.infer<typeof insertPhotoSchema>;
 
+// Hotels Schema
+export const hotels = pgTable("hotels", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  destinationId: integer("destination_id").notNull(),
+  address: text("address").notNull(),
+  latitude: decimal("latitude", { precision: 10, scale: 8 }).notNull(),
+  longitude: decimal("longitude", { precision: 11, scale: 8 }).notNull(),
+  rating: decimal("rating", { precision: 3, scale: 2 }),
+  pricePerNight: decimal("price_per_night", { precision: 10, scale: 2 }),
+  description: text("description"),
+  amenities: jsonb("amenities").default([]),
+  imageUrls: jsonb("image_urls").default([]),
+  virtual360Url: text("virtual_360_url"),
+  website: text("website"),
+  phone: text("phone"),
+});
+
+export const insertHotelSchema = createInsertSchema(hotels).omit({
+  id: true,
+});
+
+// Places Schema (Points of Interest)
+export const places = pgTable("places", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  destinationId: integer("destination_id").notNull(),
+  address: text("address").notNull(),
+  latitude: decimal("latitude", { precision: 10, scale: 8 }).notNull(),
+  longitude: decimal("longitude", { precision: 11, scale: 8 }).notNull(),
+  category: text("category").notNull(), // Restaurant, Attraction, Museum, etc.
+  rating: decimal("rating", { precision: 3, scale: 2 }),
+  description: text("description"),
+  imageUrls: jsonb("image_urls").default([]),
+  virtual360Url: text("virtual_360_url"),
+  website: text("website"),
+  phone: text("phone"),
+  openingHours: jsonb("opening_hours"),
+  priceRange: text("price_range"), // $, $$, $$$, $$$$
+});
+
+export const insertPlaceSchema = createInsertSchema(places).omit({
+  id: true,
+});
+
+// Reviews Schema
+export const reviews = pgTable("reviews", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  hotelId: integer("hotel_id"),
+  placeId: integer("place_id"),
+  rating: integer("rating").notNull(),
+  title: text("title"),
+  content: text("content").notNull(),
+  imageUrls: jsonb("image_urls").default([]),
+  virtual360Url: text("virtual_360_url"),
+  isVerified: boolean("is_verified").default(false),
+  createdAt: timestamp("created_at").notNull(),
+  updatedAt: timestamp("updated_at").notNull(),
+});
+
+export const insertReviewSchema = createInsertSchema(reviews).omit({
+  id: true,
+});
+
 export type Notification = typeof notifications.$inferSelect;
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;
+
+export type Hotel = typeof hotels.$inferSelect;
+export type InsertHotel = z.infer<typeof insertHotelSchema>;
+
+export type Place = typeof places.$inferSelect;
+export type InsertPlace = z.infer<typeof insertPlaceSchema>;
+
+export type Review = typeof reviews.$inferSelect;
+export type InsertReview = z.infer<typeof insertReviewSchema>;
