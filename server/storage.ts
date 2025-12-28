@@ -1298,10 +1298,7 @@ class HybridStorage implements IStorage {
     if (this.sb) return this.sb.updateUser(id, user);
     return this.mem.updateUser(id, user);
   }
-  async updateUser(id: number, user: Partial<User>) {
-    if (this.sb) return this.sb.updateUser(id, user);
-    return this.mem.updateUser(id, user);
-  }
+  
 
   // Destinations -> Supabase if available, else mem
   async getDestinations() {
