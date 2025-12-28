@@ -37,10 +37,10 @@ export function PlaceCard({ place, onViewDetails, onView360 }: PlaceCardProps) {
 
   return (
     <Card className="overflow-hidden hover:shadow-lg transition-shadow">
-      {place.imageUrls && place.imageUrls.length > 0 && (
+      {Array.isArray(place.imageUrls) && place.imageUrls.length > 0 ? (
         <div className="aspect-video relative overflow-hidden">
           <img
-            src={Array.isArray(place.imageUrls) ? place.imageUrls[0] : place.imageUrls}
+            src={(place.imageUrls[0] as string) ?? undefined}
             alt={place.name}
             className="w-full h-full object-cover"
           />
@@ -56,7 +56,7 @@ export function PlaceCard({ place, onViewDetails, onView360 }: PlaceCardProps) {
             </Button>
           )}
         </div>
-      )}
+      ) : null}
 
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between">
@@ -114,7 +114,7 @@ export function PlaceCard({ place, onViewDetails, onView360 }: PlaceCardProps) {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => window.open(place.website, '_blank')}
+              onClick={() => window.open(place.website ?? undefined as any, '_blank')}
             >
               <ExternalLink className="w-4 h-4" />
             </Button>

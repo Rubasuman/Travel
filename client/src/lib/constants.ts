@@ -1,0 +1,2 @@
+export const DEFAULT_IMAGE_URL = "https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=800&h=400";
+export const FALLBACK_IMAGE_URL = "https://images.unsplash.com/photo-1436491865332-7a61a109cc05?auto=format&fit=crop&w=800&h=400";

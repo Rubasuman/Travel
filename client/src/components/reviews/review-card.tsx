@@ -84,7 +84,7 @@ export function ReviewCard({ review, user, onView360 }: ReviewCardProps) {
           {review.content}
         </p>
 
-        {review.imageUrls && Array.isArray(review.imageUrls) && review.imageUrls.length > 0 && (
+        {Array.isArray(review.imageUrls) && review.imageUrls.length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {review.imageUrls.slice(0, 6).map((imageUrl, index) => (
               <div key={index} className="aspect-square rounded-lg overflow-hidden">
@@ -104,7 +104,7 @@ export function ReviewCard({ review, user, onView360 }: ReviewCardProps) {
               </div>
             )}
           </div>
-        )}
+        ) : null}
       </CardContent>
     </Card>
   );

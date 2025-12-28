@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Star, Heart } from "lucide-react";
 import { Destination } from "@shared/schema";
 import { Button } from "@/components/ui/button";
@@ -6,17 +5,17 @@ import { useToast } from "@/hooks/use-toast";
 
 interface DestinationCardProps {
   destination: Destination;
+  isFavorite?: boolean;
   onSelect?: (destination: Destination) => void;
+  onToggleFavorite?: (destination: Destination) => void;
 }
 
-export function DestinationCard({ destination, onSelect }: DestinationCardProps) {
-  const [isFavorite, setIsFavorite] = useState(false);
+export function DestinationCard({ destination, isFavorite, onSelect, onToggleFavorite }: DestinationCardProps) {
   const { toast } = useToast();
 
   const handleToggleFavorite = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setIsFavorite(!isFavorite);
-    
+    if (onToggleFavorite) onToggleFavorite(destination);
     toast({
       title: !isFavorite ? "Added to favorites" : "Removed from favorites",
       variant: "default",
@@ -33,7 +32,7 @@ export function DestinationCard({ destination, onSelect }: DestinationCardProps)
     <div className="flex-shrink-0 w-64">
       <div className="relative rounded-xl overflow-hidden group" onClick={handleSelect}>
         <img 
-          src={destination.imageUrl} 
+          src={destination.imageUrl ?? undefined}
           alt={destination.name} 
           className="w-full h-40 object-cover"
         />

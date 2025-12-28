@@ -2,7 +2,7 @@
 
 ## Overview
 
-Wanderlust is a comprehensive travel planning web application that allows users to discover destinations, plan trips, create detailed itineraries, and manage their travel memories through photo galleries. The application combines a React-based frontend with an Express.js backend, utilizing Firebase for authentication and storage, and PostgreSQL for data persistence.
+Wanderlust is a comprehensive travel planning web application that allows users to discover destinations, plan trips, create detailed itineraries, and manage their travel memories through photo galleries. The application combines a React-based frontend with an Express.js backend, utilizing Supabase for authentication and storage, and PostgreSQL for data persistence.
 
 ## User Preferences
 
@@ -36,7 +36,7 @@ The backend implements a storage abstraction layer that supports both in-memory 
 ### Database Design
 The application uses PostgreSQL as the primary database with the following core entities:
 
-- **Users**: Stores user profile information linked to Firebase authentication
+- **Users**: Stores user profile information linked to Supabase authentication
 - **Destinations**: Catalog of travel destinations with metadata
 - **Trips**: User-created trip plans with dates and destination associations
 - **Itineraries**: Detailed day-by-day activity plans for trips
@@ -46,7 +46,7 @@ The application uses PostgreSQL as the primary database with the following core 
 The database schema is managed through Drizzle migrations, ensuring version-controlled schema evolution.
 
 ### Authentication & Authorization
-Authentication is handled through Firebase Authentication supporting multiple providers:
+Authentication is handled through Supabase Authentication supporting multiple providers:
 
 - **Email/Password**: Traditional username/password authentication
 - **Social Login**: Google and Facebook OAuth integration
@@ -58,16 +58,16 @@ User sessions are persisted using PostgreSQL session storage, providing scalable
 ### File Storage Strategy
 The application implements a hybrid storage approach:
 
-- **User Photos**: Firebase Storage for scalable file hosting with CDN benefits
+- **User Photos**: Supabase Storage for scalable file hosting with CDN benefits
 - **Destination Images**: Static assets served through the application
-- **Profile Pictures**: Firebase Storage with fallback to default avatars
+- **Profile Pictures**: Supabase Storage with fallback to default avatars
 
 This approach balances performance, scalability, and cost considerations for different types of media assets.
 
 ## External Dependencies
 
 ### Cloud Services
-- **Firebase**: Authentication, file storage, and push notifications
+- **Supabase**: Authentication, file storage, and push notifications
 - **PostgreSQL**: Primary database (Neon serverless in production)
 
 ### Development Tools

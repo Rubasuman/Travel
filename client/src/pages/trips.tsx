@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuthContext } from "@/context/auth-context";
 import Sidebar from "@/components/ui/sidebar";
+import { TopHeader } from "@/components/ui/sidebar";
 import MobileNav from "@/components/ui/mobile-nav";
 import TripCard from "@/components/dashboard/trip-card";
 import { Button } from "@/components/ui/button";
@@ -34,7 +35,7 @@ export default function Trips() {
     enabled: !!user?.uid,
   });
 
-  const { data: trips = [] } = useQuery({
+  const { data: trips = [] } = useQuery<any>({
     queryKey: [`/api/users/${dbUser?.id}/trips`],
     enabled: !!dbUser?.id,
   });
@@ -70,9 +71,7 @@ export default function Trips() {
     } else if (sortOrder === "recent") {
       return compareDesc(new Date(a.startDate), new Date(b.startDate));
     } else if (sortOrder === "alphabetical") {
-      const destA = getDestinationForTrip(a.destinationId);
-      const destB = getDestinationForTrip(b.destinationId);
-      return destA.name.localeCompare(destB.name);
+      return a.title.localeCompare(b.title);
     }
     return 0;
   });
@@ -96,12 +95,15 @@ export default function Trips() {
   };
 
   return (
-    <div className="min-h-screen flex bg-gray-50">
-      {/* Sidebar - Desktop */}
+    <div className="min-h-screen flex flex-col bg-gray-50">
+      {/* Top Header - Desktop */}
+      <TopHeader />
+      
+      {/* Sidebar - Desktop Bottom Navigation */}
       <Sidebar />
       
       {/* Main Content */}
-      <main className="flex-1 p-4 lg:p-8 mt-16 lg:mt-0 overflow-y-auto pb-16 lg:pb-8">
+      <main className="flex-1 p-4 lg:p-8 mt-16 lg:mt-16 overflow-y-auto pb-32 lg:pb-32">
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
             <div>

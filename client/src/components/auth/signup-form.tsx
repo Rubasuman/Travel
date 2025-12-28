@@ -13,7 +13,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { signUpWithEmail, signInWithGoogle, signInWithFacebook } from "@/lib/firebase";
+import { signUpWithEmail } from "@/lib/supabase";
 import { apiRequest } from "@/lib/queryClient";
 
 const formSchema = z.object({
@@ -50,16 +50,11 @@ export function SignUpForm({ onToggleForm }: SignUpFormProps) {
     setIsLoading(true);
     try {
       const userCredential = await signUpWithEmail(data.email, data.password);
-      const user = userCredential.user;
-      
-      // Create user in database
-      await apiRequest("POST", "/api/users", {
-        uid: user.uid,
-        username: data.username,
-        email: user.email,
-        photoURL: user.photoURL || null,
-        displayName: user.displayName || data.username,
-      });
+          // Create user in database
+          await apiRequest("POST", "/api/users", {
+            username: data.username,
+            email: data.email,
+          });
       
       toast({
         title: "Account created successfully",
@@ -80,17 +75,8 @@ export function SignUpForm({ onToggleForm }: SignUpFormProps) {
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
     try {
-      const result = await signInWithGoogle();
-      const user = result.user;
-      
-      // Create user in database
-      await apiRequest("POST", "/api/users", {
-        uid: user.uid,
-        username: user.displayName || user.email?.split('@')[0] || "user",
-        email: user.email || "",
-        photoURL: user.photoURL || null,
-        displayName: user.displayName || user.email?.split('@')[0] || "user",
-      });
+  // Google sign-in removed; not supported with Supabase
+          // Handle Google sign-in logic here if needed
       
       toast({
         title: "Sign in successful",
@@ -111,17 +97,8 @@ export function SignUpForm({ onToggleForm }: SignUpFormProps) {
   const handleFacebookSignIn = async () => {
     setIsLoading(true);
     try {
-      const result = await signInWithFacebook();
-      const user = result.user;
-      
-      // Create user in database
-      await apiRequest("POST", "/api/users", {
-        uid: user.uid,
-        username: user.displayName || user.email?.split('@')[0] || "user",
-        email: user.email || "",
-        photoURL: user.photoURL || null,
-        displayName: user.displayName || user.email?.split('@')[0] || "user",
-      });
+  // Facebook sign-in removed; not supported with Supabase
+          // Handle Facebook sign-in logic here if needed
       
       toast({
         title: "Sign in successful",

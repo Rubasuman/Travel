@@ -10,6 +10,7 @@ import { Star, MapPin, Camera, ArrowLeft } from 'lucide-react';
 import { InteractiveMap } from '@/components/maps/interactive-map';
 import { HotelCard } from '@/components/hotels/hotel-card';
 import { PlaceCard } from '@/components/places/place-card';
+import { PlaceDetailsModal } from '@/components/places/place-details-modal';
 import { ReviewCard } from '@/components/reviews/review-card';
 import { AddReviewForm } from '@/components/reviews/add-review-form';
 import { useAuthContext } from '@/context/auth-context';
@@ -20,6 +21,8 @@ export default function DestinationDetails() {
   const destinationId = parseInt(params.id!);
   const { user, userId } = useAuthContext();
   const [selectedItem, setSelectedItem] = useState<any>(null);
+  const [selectedHotel, setSelectedHotel] = useState<Hotel | null>(null);
+  const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [showAddReview, setShowAddReview] = useState(false);
   const [show360View, setShow360View] = useState<string | null>(null);
 
@@ -60,14 +63,14 @@ export default function DestinationDetails() {
   // Prepare map locations
   const mapLocations = [
     ...(destination.latitude && destination.longitude ? [{
-      id: destination.id,
-      name: destination.name,
-      latitude: destination.latitude,
-      longitude: destination.longitude,
-      type: 'destination' as const,
-      rating: destination.rating,
-      description: destination.description,
-      category: destination.category,
+  id: destination.id,
+  name: destination.name,
+  latitude: destination.latitude,
+  longitude: destination.longitude,
+  type: 'destination' as const,
+  rating: destination.rating ?? undefined,
+        description: destination.description ?? undefined,
+        category: destination.category ?? undefined,
     }] : []),
     ...hotels.map(hotel => ({
       id: hotel.id,
@@ -75,10 +78,10 @@ export default function DestinationDetails() {
       latitude: hotel.latitude,
       longitude: hotel.longitude,
       type: 'hotel' as const,
-      rating: hotel.rating,
-      description: hotel.description,
-      virtual360Url: hotel.virtual360Url,
-      website: hotel.website,
+      rating: hotel.rating ?? undefined,
+      description: hotel.description ?? undefined,
+      virtual360Url: hotel.virtual360Url ?? undefined,
+      website: hotel.website ?? undefined,
     })),
     ...places.map(place => ({
       id: place.id,
@@ -86,12 +89,12 @@ export default function DestinationDetails() {
       latitude: place.latitude,
       longitude: place.longitude,
       type: 'place' as const,
-      rating: place.rating,
-      description: place.description,
-      category: place.category,
-      virtual360Url: place.virtual360Url,
-      website: place.website,
-      priceRange: place.priceRange,
+      rating: place.rating ?? undefined,
+      description: place.description ?? undefined,
+      category: place.category ?? undefined,
+      virtual360Url: place.virtual360Url ?? undefined,
+      website: place.website ?? undefined,
+      priceRange: place.priceRange ?? undefined,
     })),
   ];
 
@@ -194,7 +197,7 @@ export default function DestinationDetails() {
                   <HotelCard
                     key={hotel.id}
                     hotel={hotel}
-                    onViewDetails={setSelectedItem}
+                    onViewDetails={setSelectedHotel}
                     onView360={(hotel) => hotel.virtual360Url && handle360View(hotel.virtual360Url)}
                   />
                 ))}
@@ -219,7 +222,7 @@ export default function DestinationDetails() {
                   <PlaceCard
                     key={place.id}
                     place={place}
-                    onViewDetails={setSelectedItem}
+                    onViewDetails={setSelectedPlace}
                     onView360={(place) => place.virtual360Url && handle360View(place.virtual360Url)}
                   />
                 ))}
@@ -264,6 +267,115 @@ export default function DestinationDetails() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Hotel Details Modal */}
+      <Dialog open={!!selectedHotel} onOpenChange={() => setSelectedHotel(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          {selectedHotel && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-2xl">{selectedHotel.name}</DialogTitle>
+              </DialogHeader>
+              
+              <div className="space-y-6">
+                {/* Hotel Image Gallery */}
+                {Array.isArray(selectedHotel.imageUrls) && selectedHotel.imageUrls.length > 0 && (
+                  <div className="space-y-2">
+                    <img
+                      src={(selectedHotel.imageUrls[0] as string) ?? undefined}
+                      alt={selectedHotel.name}
+                      className="w-full h-64 object-cover rounded-lg"
+                    />
+                  </div>
+                )}
+
+                {/* Rating and Address */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-4">
+                    {selectedHotel.rating && (
+                      <div className="flex items-center gap-1">
+                        <Star className="w-5 h-5 fill-yellow-400 text-yellow-400" />
+                        <span className="font-semibold text-lg">{selectedHotel.rating}</span>
+                      </div>
+                    )}
+                    <span className="text-lg font-semibold text-primary">
+                      ${selectedHotel.pricePerNight}/night
+                    </span>
+                  </div>
+                  
+                  <div className="flex items-center gap-2 text-gray-600">
+                    <MapPin className="w-4 h-4" />
+                    <span>{selectedHotel.address}</span>
+                  </div>
+                </div>
+
+                {/* Description */}
+                {selectedHotel.description && (
+                  <div>
+                    <h3 className="font-semibold text-lg mb-2">About</h3>
+                    <p className="text-gray-700">{selectedHotel.description}</p>
+                  </div>
+                )}
+
+                {/* Amenities */}
+                {Array.isArray(selectedHotel.amenities) && selectedHotel.amenities.length > 0 && (
+                  <div>
+                    <h3 className="font-semibold text-lg mb-3">Amenities</h3>
+                    <div className="grid grid-cols-2 gap-2">
+                      {selectedHotel.amenities.map((amenity) => (
+                        <Badge key={amenity} variant="secondary" className="justify-start">
+                          ✓ {amenity}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Contact Information */}
+                <div className="border-t pt-4">
+                  <h3 className="font-semibold text-lg mb-3">Contact Information</h3>
+                  <div className="space-y-2">
+                    {selectedHotel.phone && (
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">Phone:</span>
+                        <a href={`tel:${selectedHotel.phone}`} className="text-primary hover:underline">
+                          {selectedHotel.phone}
+                        </a>
+                      </div>
+                    )}
+                    {selectedHotel.website && (
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">Website:</span>
+                        <a 
+                          href={selectedHotel.website} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-primary hover:underline"
+                        >
+                          Visit Website
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Close Button */}
+                <div className="flex gap-2 pt-4 border-t">
+                  <Button 
+                    onClick={() => setSelectedHotel(null)}
+                    className="flex-1"
+                  >
+                    Close
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Place Details Modal */}
+      <PlaceDetailsModal place={selectedPlace} onClose={() => setSelectedPlace(null)} />
 
       {/* 360° View Modal */}
       <Dialog open={!!show360View} onOpenChange={() => setShow360View(null)}>

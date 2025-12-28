@@ -1,3 +1,18 @@
+import * as dotenv from "dotenv";
+import { fileURLToPath } from "url";
+import { dirname, resolve } from "path";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const rootDir = resolve(__dirname, '..');
+const envResult = dotenv.config({ path: resolve(rootDir, '.env') });
+
+console.log('[startup] Env loaded from:', resolve(rootDir, '.env'));
+console.log('[startup] Env parse result:', envResult.error ? `Error: ${envResult.error}` : 'Success');
+console.log('[startup] SUPABASE_URL:', process.env.SUPABASE_URL ? '✓' : '✗');
+console.log('[startup] SUPABASE_SERVICE_ROLE_KEY:', process.env.SUPABASE_SERVICE_ROLE_KEY ? '✓' : '✗');
+
+// NOW import other modules after env is loaded
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
@@ -60,11 +75,8 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = 5000;
-  server.listen({
-    port,
-    host: "localhost", // Changed from 0.0.0.0 to localhost
-    reusePort: true,
-  }, () => {
-    log(`serving on port ${port}`);
+  // Listen on IPv4 loopback to avoid IPv6 socket issues on some Windows setups
+  server.listen(port, "127.0.0.1", () => {
+    log(`serving on port http://127.0.0.1:${port}`);
   });
 })();

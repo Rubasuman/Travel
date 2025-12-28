@@ -5,7 +5,7 @@ import { z } from "zod";
 import { useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { supabase } from '@/lib/supabase';
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -27,6 +27,9 @@ import {
 } from "@/components/ui/select";
 import { Upload, X, Image } from "lucide-react";
 
+// Change this if your storage bucket has a different name
+const BUCKET_NAME = 'photos';
+
 const formSchema = z.object({
   tripId: z.string().optional(),
   caption: z.string().optional(),
@@ -38,23 +41,24 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 interface UploadPhotoFormProps {
-  userId: number;
+  userId?: number;
+  username?: string;
   trips: any[];
-  onSuccess: () => void;
+  onSuccess?: () => void;
 }
 
-export default function UploadPhotoForm({ userId, trips, onSuccess }: UploadPhotoFormProps) {
+export default function UploadPhotoForm({ userId, username, trips, onSuccess }: UploadPhotoFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const storage = getStorage();
+  // supabase client from lib
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      tripId: "",
+      tripId: "none",
       caption: "",
     },
   });
@@ -94,38 +98,168 @@ export default function UploadPhotoForm({ userId, trips, onSuccess }: UploadPhot
     setIsSubmitting(true);
     
     try {
-      // Upload the image to Firebase Storage
-      const fileRef = ref(storage, `photos/${userId}/${Date.now()}-${data.imageFile.name}`);
-      await uploadBytes(fileRef, data.imageFile);
-      const imageUrl = await getDownloadURL(fileRef);
+      // Upload the image to Supabase Storage
+      // Use username as the folder name, fallback to userId if username is not available
+      const folderName = username || `user-${userId}`;
+      const filePath = `${folderName}/${Date.now()}-${data.imageFile.name}`;
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from(BUCKET_NAME)
+        .upload(filePath, data.imageFile);
+      if (uploadError) {
+        console.error('Supabase storage upload error:', uploadError);
+        const msg = uploadError?.message || JSON.stringify(uploadError);
+        // Detect missing bucket and give actionable guidance
+        if (/bucket/i.test(msg) || (uploadError as any)?.status === 404) {
+          toast({
+            title: "Storage bucket not found",
+            description: `Bucket '${BUCKET_NAME}' not found in Supabase storage. Create it in the Supabase dashboard or update BUCKET_NAME in the app.`,
+            variant: "destructive",
+          });
+        }
+        throw new Error(msg);
+      }
+
+      // We will store the storage path (bucket + object path) as the photo.imageUrl
+      // This avoids relying on public URLs (which fail for private buckets) and
+      // lets the server generate signed URLs when needed.
+      const storagePath = filePath; // e.g. "123/169...-photo.jpg"
+      const imageUrl = `${BUCKET_NAME}/${storagePath}`; // stored as "bucket/path/to/file"
+      // Still log the public URL if available for debugging
+      const { data: urlData } = supabase.storage.from(BUCKET_NAME).getPublicUrl(filePath);
+      console.log('Supabase upload result', { filePath, storagePath, publicUrl: urlData?.publicUrl, urlData });
       
-      // Save the photo details to the database
-      await apiRequest("POST", "/api/photos", {
+      // Prepare payload for server
+      const payload = {
         userId,
-        tripId: data.tripId ? parseInt(data.tripId) : null,
-        imageUrl,
+        tripId: data.tripId && data.tripId !== 'none' ? parseInt(data.tripId) : null,
+        imageUrl, // form: "bucket/path/to/file.jpg"
         caption: data.caption,
-        uploadedAt: new Date().toISOString(),
-      });
-      
+      };
+
+      // Optimistic UI: insert a temporary photo into the query cache so the gallery
+      // displays the uploaded image immediately even if the server POST fails.
+      try {
+        const tempId = -Date.now();
+        const tempPhoto = {
+          id: tempId,
+          userId,
+          tripId: payload.tripId,
+          imageUrl: payload.imageUrl,
+          caption: payload.caption,
+          uploadedAt: new Date().toISOString(),
+        } as any;
+
+        queryClient.setQueryData([`/api/users/${userId}/photos`], (old: any) => {
+          if (!old) return [tempPhoto];
+          return [tempPhoto, ...old];
+        });
+
+        if (payload.tripId) {
+          queryClient.setQueryData([`/api/trips/${payload.tripId}/photos`], (old: any) => {
+            if (!old) return [tempPhoto];
+            return [tempPhoto, ...old];
+          });
+        }
+      } catch (e) {
+        console.warn('Optimistic UI update failed', e);
+      }
+
+      // Notify user that upload to storage succeeded
       toast({
         title: "Photo uploaded",
-        description: "Your photo has been successfully uploaded",
+        description: "Your photo has been uploaded to storage",
       });
-      
-      queryClient.invalidateQueries({ queryKey: [`/api/users/${userId}/photos`] });
-      
-      if (data.tripId) {
-        queryClient.invalidateQueries({ queryKey: [`/api/trips/${data.tripId}/photos`] });
+
+      // Helper: persist failed payloads locally for retry
+      const storePendingPhoto = (p: any) => {
+        try {
+          const key = 'pending_photos';
+          const existing = JSON.parse(localStorage.getItem(key) || '[]');
+          existing.push({ payload: p, createdAt: new Date().toISOString() });
+          localStorage.setItem(key, JSON.stringify(existing));
+        } catch (e) {
+          console.warn('Failed to store pending photo', e);
+        }
+      };
+
+      // Attempt to save metadata to server, but do not block display on failure.
+      try {
+        const res = await fetch("/api/photos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) {
+          let text = '';
+          try {
+            const json = await res.json().catch(() => null);
+            if (json) {
+              text = JSON.stringify(json);
+              // If it's a validation error for uploadedAt, store pending and show non-destructive toast
+              if (res.status === 400 && json?.message && String(json.message).includes('Invalid photo data')) {
+                storePendingPhoto(payload);
+                toast({
+                  title: 'Photo visible',
+                  description: 'Image uploaded to storage and will be saved to your gallery when the server accepts it (queued).',
+                });
+                // Do not throw or show destructive toast
+                return;
+              }
+            } else {
+              text = await res.text();
+            }
+          } catch (e) {
+            text = `Could not read response body: ${String(e)}`;
+          }
+          console.error("/api/photos returned non-OK", { status: res.status, statusText: res.statusText, body: text });
+          // General failure: store pending and warn the user (non-destructive)
+          storePendingPhoto(payload);
+          toast({
+            title: "Warning",
+            description: "Image saved in storage but saving metadata failed. It'll be retried automatically.",
+            variant: "default",
+          });
+        } else {
+          // Refresh the photos list to get authoritative data from server
+          queryClient.invalidateQueries({ queryKey: [`/api/users/${userId}/photos`] });
+          if (payload.tripId) {
+            queryClient.invalidateQueries({ queryKey: [`/api/trips/${payload.tripId}/photos`] });
+          }
+        }
+      } catch (err) {
+        console.error("Direct POST /api/photos failed:", err);
+        // Network-level failure: persist and show non-destructive toast
+        storePendingPhoto(payload);
+        toast({
+          title: "Warning",
+          description: "Image uploaded but saving metadata failed (network). It'll be retried automatically.",
+          variant: "default",
+        });
       }
       
-      onSuccess();
+  onSuccess?.();
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to upload photo. Please try again.",
-        variant: "destructive",
-      });
+      console.error('Upload photo error:', error);
+      // Try a quick diagnostic ping to the backend so the user can see if the API is reachable
+      try {
+        const pingRes = await fetch('/api/ping', { credentials: 'include' });
+        const pingJson = await pingRes.json().catch(() => null);
+        console.warn('Backend ping result', { status: pingRes.status, body: pingJson });
+        toast({
+          title: "Error",
+          description: `${(error as any)?.message ? String((error as any).message) : "Failed to upload photo."}  ping: ${pingRes.status}`,
+          variant: "destructive",
+        });
+      } catch (pingErr) {
+        console.error('Ping failed', pingErr);
+        toast({
+          title: "Error",
+          description: "Failed to upload photo and backend ping failed. Check the server is running.",
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -212,7 +346,7 @@ export default function UploadPhotoForm({ userId, trips, onSuccess }: UploadPhot
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  <SelectItem value="">None</SelectItem>
+                  <SelectItem value="none">None</SelectItem>
                   {trips.map((trip) => (
                     <SelectItem key={trip.id} value={trip.id.toString()}>
                       {trip.title}

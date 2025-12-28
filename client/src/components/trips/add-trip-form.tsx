@@ -34,7 +34,7 @@ import { CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { insertTripSchema } from "@shared/schema";
 import { useAuthContext } from "@/context/auth-context";
-import { createDocument } from "@/lib/firebase";
+// Removed direct client Supabase write helpers to ensure only server persists trips
 
 // Define interfaces for API data
 interface Destination {
@@ -133,30 +133,14 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
       
       console.log("Payload to be sent:", payload);
 
-      // Save to server backend storage
+      // Save to server backend storage (preferred). Do not perform client-side Supabase writes here.
       const response = await apiRequest("POST", "/api/trips", payload);
-      
-      // Save the same data to Firebase Firestore with additional metadata
-      const firestoreData = {
-        ...payload,
-        // Add Firebase specific fields
-        uid: user.uid,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        destination: {
-          name: selectedDestination?.name || "Unknown",
-          country: selectedDestination?.country || "Unknown",
-          imageUrl: selectedDestination?.imageUrl || "",
-        }
-      };
-      
-      // Use the trip ID from the server response as the document ID in Firestore
-      if (response && typeof response === 'object' && 'id' in response) {
-        await createDocument('trips', String(response.id), firestoreData);
 
+      // If we have a created response now, proceed to success flow
+      if (response && typeof response === 'object' && 'id' in response) {
         toast({
           title: "Trip created!",
-          description: "Your trip has been successfully created in both local storage and Firebase.",
+          description: "Your trip has been successfully created.",
         });
 
         queryClient.invalidateQueries({
@@ -328,11 +312,12 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
             <FormItem>
               <FormLabel>Description</FormLabel>
               <FormControl>
-                <Textarea
-                  placeholder="Describe your trip plans..."
-                  className="min-h-[100px]"
-                  {...field}
-                />
+                        <Textarea
+                          placeholder="Describe your trip plans..."
+                          className="min-h-[100px]"
+                          {...field}
+                          value={field.value ?? ""}
+                        />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -346,7 +331,7 @@ export function AddTripForm({ onSuccess }: AddTripFormProps) {
             <FormItem>
               <FormLabel>Image URL (optional)</FormLabel>
               <FormControl>
-                <Input placeholder="https://example.com/image.jpg" {...field} />
+                  <Input placeholder="https://example.com/image.jpg" {...field} value={field.value ?? ""} />
               </FormControl>
               <FormMessage />
             </FormItem>

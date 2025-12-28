@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuthContext } from "@/context/auth-context";
 import Sidebar from "@/components/ui/sidebar";
+import { TopHeader } from "@/components/ui/sidebar";
 import MobileNav from "@/components/ui/mobile-nav";
 import NotificationItem from "@/components/dashboard/notification-item";
 import { Button } from "@/components/ui/button";
@@ -22,7 +23,7 @@ export default function Notifications() {
     enabled: !!user?.uid,
   });
 
-  const { data: notifications = [] } = useQuery({
+  const { data: notifications = [] } = useQuery<any>({
     queryKey: [`/api/users/${dbUser?.id}/notifications`],
     enabled: !!dbUser?.id,
   });
@@ -56,12 +57,15 @@ export default function Notifications() {
   };
 
   return (
-    <div className="min-h-screen flex bg-gray-50">
-      {/* Sidebar - Desktop */}
+    <div className="min-h-screen flex flex-col bg-gray-50">
+      {/* Top Header - Desktop */}
+      <TopHeader />
+      
+      {/* Sidebar - Desktop Bottom Navigation */}
       <Sidebar />
       
       {/* Main Content */}
-      <main className="flex-1 p-4 lg:p-8 mt-16 lg:mt-0 overflow-y-auto pb-16 lg:pb-8">
+      <main className="flex-1 p-4 lg:p-8 mt-16 lg:mt-16 overflow-y-auto pb-32 lg:pb-32">
         <div className="max-w-3xl mx-auto">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
             <div>

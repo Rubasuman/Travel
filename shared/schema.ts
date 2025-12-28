@@ -5,7 +5,7 @@ import { z } from "zod";
 // User Schema
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
-  uid: text("uid").notNull().unique(), // Firebase UID
+  uid: text("uid").notNull().unique(), // Auth provider UID
   username: text("username").notNull(),
   email: text("email").notNull().unique(),
   photoURL: text("photo_url"),
@@ -46,6 +46,7 @@ export const trips = pgTable("trips", {
   endDate: timestamp("end_date").notNull(),
   description: text("description"),
   imageUrl: text("image_url"),
+  photoId: integer("photo_id"),
   activities: integer("activities").default(0),
   isFavorite: boolean("is_favorite").default(false),
 });
@@ -78,9 +79,16 @@ export const photos = pgTable("photos", {
   uploadedAt: timestamp("uploaded_at").notNull(),
 });
 
-export const insertPhotoSchema = createInsertSchema(photos).omit({
-  id: true,
-});
+// Accept ISO date strings for uploadedAt by preprocessing before validation
+export const insertPhotoSchema = z.preprocess((arg) => {
+  if (arg && typeof arg === 'object' && 'uploadedAt' in (arg as any)) {
+    const a = arg as any;
+    if (typeof a.uploadedAt === 'string') {
+      a.uploadedAt = new Date(a.uploadedAt);
+    }
+  }
+  return arg;
+}, createInsertSchema(photos).omit({ id: true }));
 
 // Notifications Schema
 export const notifications = pgTable("notifications", {

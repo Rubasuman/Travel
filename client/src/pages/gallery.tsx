@@ -1,7 +1,10 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuthContext } from "@/context/auth-context";
+import type { User } from '@shared/schema';
+import { supabase } from "@/lib/supabase";
 import Sidebar from "@/components/ui/sidebar";
+import { TopHeader } from "@/components/ui/sidebar";
 import MobileNav from "@/components/ui/mobile-nav";
 import PhotoGallery from "@/components/dashboard/photo-gallery";
 import { Button } from "@/components/ui/button";
@@ -20,39 +23,60 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { UploadCloud } from "lucide-react";
+import { ArrowLeft } from 'lucide-react';
 import UploadPhotoForm from "@/components/gallery/upload-photo-form";
+
+// Helper to get viewable URL from storage path
+const getPhotoUrl = (imageUrl: string): string => {
+  if (!imageUrl) return "";
+  // If it's a full URL already, return as-is
+  if (imageUrl.startsWith('http')) return imageUrl;
+  // If it's a storage path like "photos/123/...", get the public URL
+  if (imageUrl.includes('/')) {
+    const [bucket, ...rest] = imageUrl.split('/');
+    const filePath = rest.join('/');
+    const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
+    return data?.publicUrl || imageUrl;
+  }
+  return imageUrl;
+};
 
 export default function Gallery() {
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
-  const [selectedTrip, setSelectedTrip] = useState<string>("");
+  const [selectedTrip, setSelectedTrip] = useState<string>("all");
+  // controlled tab state so we can switch to the photos tab programmatically
+  const [activeTab, setActiveTab] = useState<string>("all");
   const { user } = useAuthContext();
 
-  const { data: dbUser } = useQuery({
+  const { data: dbUser } = useQuery<User | null>({
     queryKey: [`/api/users/uid/${user?.uid}`],
     enabled: !!user?.uid,
   });
 
-  const { data: photos = [] } = useQuery({
+  const { data: photos = [] } = useQuery<any>({
     queryKey: [`/api/users/${dbUser?.id}/photos`],
     enabled: !!dbUser?.id,
   });
 
-  const { data: trips = [] } = useQuery({
+  const { data: trips = [] } = useQuery<any>({
     queryKey: [`/api/users/${dbUser?.id}/trips`],
     enabled: !!dbUser?.id,
   });
 
-  const filteredPhotos = selectedTrip 
+  const filteredPhotos = selectedTrip && selectedTrip !== "all"
     ? photos.filter((photo: any) => photo.tripId === parseInt(selectedTrip))
     : photos;
 
   return (
-    <div className="min-h-screen flex bg-gray-50">
-      {/* Sidebar - Desktop */}
+    <div className="min-h-screen flex flex-col bg-gray-50">
+      {/* Top Header - Desktop */}
+      <TopHeader />
+      
+      {/* Sidebar - Desktop Bottom Navigation */}
       <Sidebar />
       
       {/* Main Content */}
-      <main className="flex-1 p-4 lg:p-8 mt-16 lg:mt-0 overflow-y-auto pb-16 lg:pb-8">
+      <main className="flex-1 p-4 lg:p-8 mt-16 lg:mt-16 overflow-y-auto pb-32 lg:pb-32">
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
             <div>
@@ -67,12 +91,43 @@ export default function Gallery() {
               Upload Photo
             </Button>
           </div>
+
+          {/* My Trips - horizontal scrollable strip for discovery */}
+          {trips.length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold mb-3">My Trips</h3>
+              <div className="flex gap-4 overflow-x-auto pb-2">
+                {trips.map((trip: any) => {
+                  const tripPhotos = photos.filter((photo: any) => photo.tripId === trip.id);
+                  const photoUrl = tripPhotos.length > 0 ? getPhotoUrl(tripPhotos[0].imageUrl) : null;
+                  const coverPhoto = photoUrl || trip.imageUrl;
+                  return (
+                    <div key={trip.id} className="w-64 flex-shrink-0 bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100">
+                      <div className="h-36 bg-gray-200">
+                        {coverPhoto ? (
+                          <img src={coverPhoto} alt={trip.title} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-400">No photos</div>
+                        )}
+                      </div>
+                      <div className="p-3">
+                        <h4 className="font-bold truncate">{trip.title}</h4>
+                        <p className="text-xs text-gray-500 mb-3">{tripPhotos.length} photos</p>
+                        <Button variant="outline" size="sm" className="w-full" onClick={() => { setSelectedTrip(trip.id.toString()); setActiveTab('all'); }}>
+                          View Photos
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           
-          <Tabs defaultValue="all">
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v)}>
             <div className="flex flex-col md:flex-row justify-between md:items-center mb-6">
               <TabsList>
                 <TabsTrigger value="all">All Photos</TabsTrigger>
-                <TabsTrigger value="trips">By Trip</TabsTrigger>
               </TabsList>
               
               <div className="mt-4 md:mt-0">
@@ -82,12 +137,12 @@ export default function Gallery() {
                       <SelectValue placeholder="Filter by trip" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All Trips</SelectItem>
-                      {trips.map((trip: any) => (
-                        <SelectItem key={trip.id} value={trip.id.toString()}>
-                          {trip.title}
-                        </SelectItem>
-                      ))}
+                      <SelectItem value="all">All Trips</SelectItem>
+                            {trips.map((trip: any) => (
+                              <SelectItem key={trip.id} value={trip.id.toString()}>
+                                {trip.title}
+                              </SelectItem>
+                            ))}
                     </SelectContent>
                   </Select>
                 )}
@@ -95,6 +150,17 @@ export default function Gallery() {
             </div>
             
             <TabsContent value="all" className="mt-0">
+              {/* show selected trip name when a trip is selected */}
+              {selectedTrip && selectedTrip !== 'all' && (
+                <div className="mb-4 flex items-center justify-between">
+                  <h2 className="text-2xl font-bold">{trips.find((t: any) => t.id.toString() === selectedTrip)?.title || 'Selected Trip'}</h2>
+                  <div>
+                    <Button variant="ghost" size="sm" onClick={() => setSelectedTrip('all')}>
+                      <ArrowLeft className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
               {photos.length === 0 ? (
                 <div className="text-center p-12 bg-gray-50 rounded-lg border border-dashed border-gray-300">
                   <UploadCloud className="mx-auto h-12 w-12 text-gray-400" />
@@ -120,50 +186,7 @@ export default function Gallery() {
               )}
             </TabsContent>
             
-            <TabsContent value="trips" className="mt-0">
-              {trips.length === 0 ? (
-                <div className="text-center p-12 bg-gray-50 rounded-lg border border-dashed border-gray-300">
-                  <h3 className="text-lg font-medium text-gray-900">No trips created yet</h3>
-                  <p className="mt-2 text-sm text-gray-500">Create a trip first to organize your photos by trip.</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {trips.map((trip: any) => {
-                    const tripPhotos = photos.filter((photo: any) => photo.tripId === trip.id);
-                    const coverPhoto = tripPhotos[0]?.imageUrl || trip.imageUrl;
-                    
-                    return (
-                      <div key={trip.id} className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100">
-                        <div className="h-40 bg-gray-200">
-                          {coverPhoto ? (
-                            <img
-                              src={coverPhoto}
-                              alt={trip.title}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-400">
-                              No photos
-                            </div>
-                          )}
-                        </div>
-                        <div className="p-4">
-                          <h3 className="font-bold">{trip.title}</h3>
-                          <p className="text-sm text-gray-500 mb-3">{tripPhotos.length} photos</p>
-                          <Button 
-                            variant="outline" 
-                            className="w-full"
-                            onClick={() => setSelectedTrip(trip.id.toString())}
-                          >
-                            View Photos
-                          </Button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </TabsContent>
+            {/* 'By Trip' tab removed — trip cards are accessible via the Select and the selected trip's photos are shown above */}
           </Tabs>
         </div>
       </main>
@@ -178,7 +201,8 @@ export default function Gallery() {
             <DialogTitle>Upload a Photo</DialogTitle>
           </DialogHeader>
           <UploadPhotoForm 
-            userId={dbUser?.id} 
+            userId={dbUser?.id}
+            username={dbUser?.username}
             trips={trips}
             onSuccess={() => setIsUploadDialogOpen(false)}
           />

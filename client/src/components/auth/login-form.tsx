@@ -13,7 +13,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { signInWithEmail, signInWithGoogle, signInWithFacebook } from "@/lib/firebase";
+import { signInWithEmail } from "@/lib/supabase";
 
 const formSchema = z.object({
   email: z.string().email("Please enter a valid email"),
@@ -61,7 +61,7 @@ export function LoginForm({ onToggleForm }: LoginFormProps) {
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
     try {
-      await signInWithGoogle();
+  // Google sign-in removed; not supported with Supabase
       toast({
         title: "Sign in successful",
         description: "Welcome back!",
@@ -81,7 +81,7 @@ export function LoginForm({ onToggleForm }: LoginFormProps) {
   const handleFacebookSignIn = async () => {
     setIsLoading(true);
     try {
-      await signInWithFacebook();
+  // Facebook sign-in removed; not supported with Supabase
       toast({
         title: "Sign in successful",
         description: "Welcome back!",

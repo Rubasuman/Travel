@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuthContext } from "@/context/auth-context";
 import Sidebar from "@/components/ui/sidebar";
+import { TopHeader } from "@/components/ui/sidebar";
 import MobileNav from "@/components/ui/mobile-nav";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -28,11 +29,58 @@ import {
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import ItineraryForm from "@/components/trips/itinerary-form";
-import { format, differenceInDays, addDays } from "date-fns";
-import { CalendarRange, Pencil, Plus, Trash2, ChevronLeft, Globe, Map, Upload, FileText, MapPin } from "lucide-react";
+import EditTripForm from "@/components/trips/edit-trip-form";
+import { format, addDays, startOfDay } from "date-fns";
+import { CalendarRange, Pencil, Plus, Trash2, ChevronLeft, Globe, Map, Upload, FileText, Image, MapPin } from "lucide-react";
+import PhotoThumbnail from "@/components/trips/photo-thumbnail";
 
 interface TripDetailsProps {
   id: number;
+}
+
+// Local interfaces for typed queries
+interface DbUser {
+  id: number;
+  uid: string;
+  username?: string;
+  email?: string;
+}
+
+interface Destination {
+  id: number;
+  name: string;
+  country: string;
+  description?: string;
+  imageUrl?: string;
+  category?: string;
+  rating?: number;
+}
+
+interface Photo {
+  id: number;
+  imageUrl: string;
+  caption?: string;
+}
+
+interface Itinerary {
+  id: number;
+  tripId: number;
+  day: number;
+  activities: Array<any>;
+  notes?: string;
+}
+
+interface Trip {
+  id: number;
+  userId: number;
+  destinationId: number;
+  title: string;
+  description?: string;
+  startDate: string;
+  endDate: string;
+  imageUrl?: string;
+  activities?: number;
+  isFavorite?: boolean;
 }
 
 export default function TripDetails({ id }: TripDetailsProps) {
@@ -45,27 +93,27 @@ export default function TripDetails({ id }: TripDetailsProps) {
   const [isItineraryDialogOpen, setIsItineraryDialogOpen] = useState(false);
   const [activeDay, setActiveDay] = useState<number | null>(null);
 
-  const { data: dbUser } = useQuery({
+  const { data: dbUser } = useQuery<DbUser | undefined>({
     queryKey: [`/api/users/uid/${user?.uid}`],
     enabled: !!user?.uid,
   });
 
-  const { data: trip, isLoading: isTripLoading } = useQuery({
+  const { data: trip, isLoading: isTripLoading } = useQuery<Trip | undefined>({
     queryKey: [`/api/trips/${id}`],
     enabled: !!id,
   });
 
-  const { data: destination } = useQuery({
+  const { data: destination } = useQuery<Destination | undefined>({
     queryKey: [`/api/destinations/${trip?.destinationId}`],
     enabled: !!trip?.destinationId,
   });
 
-  const { data: itineraries = [] } = useQuery({
+  const { data: itineraries = [] } = useQuery<Itinerary[]>({
     queryKey: [`/api/trips/${id}/itineraries`],
     enabled: !!id,
   });
 
-  const { data: photos = [] } = useQuery({
+  const { data: photos = [] } = useQuery<Photo[]>({
     queryKey: [`/api/trips/${id}/photos`],
     enabled: !!id,
   });
@@ -81,6 +129,23 @@ export default function TripDetails({ id }: TripDetailsProps) {
       setLocation("/trips");
     }
   }, [trip, dbUser, toast, setLocation]);
+
+  // Auto-create default itineraries if none exist
+  useEffect(() => {
+    const seedDefaults = async () => {
+      try {
+        await apiRequest('POST', `/api/trips/${id}/itineraries/default`);
+        // refresh itineraries after seeding
+        queryClient.invalidateQueries({ queryKey: [`/api/trips/${id}/itineraries`] });
+        toast({ title: 'Default itinerary created', description: 'You can edit activities for each day.' });
+      } catch (err) {
+        // silently ignore if server returns existing itineraries
+      }
+    };
+    if (trip && itineraries && itineraries.length === 0) {
+      seedDefaults();
+    }
+  }, [trip, itineraries, id, queryClient, toast]);
 
   if (isTripLoading) {
     return (
@@ -104,23 +169,20 @@ export default function TripDetails({ id }: TripDetailsProps) {
     );
   }
 
-  const tripDuration = differenceInDays(new Date(trip.endDate), new Date(trip.startDate)) + 1;
-  
-  // Generate days for the trip
-  const tripDays = Array.from({ length: tripDuration }, (_, i) => {
-    const day = addDays(new Date(trip.startDate), i);
-    const dayNumber = i + 1;
-    const formattedDate = format(day, "EEE, MMM d");
-    
+  // Generate days inclusively from startDate -> endDate to ensure last day is shown
+  const start = startOfDay(new Date(trip.startDate));
+  const end = startOfDay(new Date(trip.endDate));
+  const tripDays: Array<any> = [];
+  let current = start;
+  let dayNumber = 1;
+  while (current <= end) {
+    const formattedDate = format(current, "EEE, MMM d");
     const itinerary = itineraries.find((it: any) => it.day === dayNumber);
-    
-    return {
-      day: dayNumber,
-      date: day,
-      formattedDate,
-      itinerary,
-    };
-  });
+    tripDays.push({ day: dayNumber, date: current, formattedDate, itinerary });
+    current = addDays(current, 1);
+    dayNumber += 1;
+  }
+  const tripDuration = tripDays.length;
 
   const handleDelete = async () => {
     try {
@@ -129,7 +191,7 @@ export default function TripDetails({ id }: TripDetailsProps) {
         title: "Trip deleted",
         description: "Your trip has been successfully deleted",
       });
-      queryClient.invalidateQueries({ queryKey: [`/api/users/${dbUser.id}/trips`] });
+  if (dbUser?.id) queryClient.invalidateQueries({ queryKey: [`/api/users/${dbUser.id}/trips`] });
       setLocation("/trips");
     } catch (error) {
       toast({
@@ -151,12 +213,15 @@ export default function TripDetails({ id }: TripDetailsProps) {
   };
 
   return (
-    <div className="min-h-screen flex bg-gray-50">
-      {/* Sidebar - Desktop */}
+    <div className="min-h-screen flex flex-col bg-gray-50">
+      {/* Top Header - Desktop */}
+      <TopHeader />
+      
+      {/* Sidebar - Desktop Bottom Navigation */}
       <Sidebar />
       
       {/* Main Content */}
-      <main className="flex-1 p-4 lg:p-8 mt-16 lg:mt-0 overflow-y-auto pb-16 lg:pb-8">
+      <main className="flex-1 p-4 lg:p-8 mt-16 lg:mt-16 overflow-y-auto pb-32 lg:pb-32">
         <div className="max-w-7xl mx-auto">
           {/* Back button */}
           <Button
@@ -285,13 +350,13 @@ export default function TripDetails({ id }: TripDetailsProps) {
                           </Button>
                         </div>
                       ) : (
-                        <div className="space-y-6">
+                        <div className="flex gap-4 overflow-x-auto pb-2">
                           {itineraries
                             .sort((a: any, b: any) => a.day - b.day)
                             .map((itinerary: any) => {
                               const tripDay = tripDays.find(d => d.day === itinerary.day);
                               return (
-                                <div key={itinerary.id} className="border rounded-lg p-4">
+                                <div key={itinerary.id} className="min-w-[300px] md:min-w-[350px] border rounded-lg p-4 shadow-sm flex-shrink-0">
                                   <div className="flex justify-between items-center mb-4">
                                     <div>
                                       <h3 className="font-bold text-lg">Day {itinerary.day}</h3>
@@ -430,9 +495,9 @@ export default function TripDetails({ id }: TripDetailsProps) {
                   </Button>
                 </CardHeader>
                 <CardContent>
-                  {photos.length === 0 ? (
+                      {photos.length === 0 ? (
                     <div className="text-center p-12 border border-dashed rounded-lg">
-                      <Images className="mx-auto h-12 w-12 text-gray-400" />
+                      <Image className="mx-auto h-12 w-12 text-gray-400" />
                       <h3 className="mt-4 text-lg font-medium text-gray-900">No photos yet</h3>
                       <p className="mt-2 text-sm text-gray-500">Upload photos to remember your journey.</p>
                       <Button 
@@ -446,20 +511,7 @@ export default function TripDetails({ id }: TripDetailsProps) {
                   ) : (
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       {photos.map((photo: any) => (
-                        <div key={photo.id} className="relative rounded-lg overflow-hidden aspect-square group">
-                          <img 
-                            src={photo.imageUrl} 
-                            alt={photo.caption || "Travel memory"} 
-                            className="w-full h-full object-cover"
-                          />
-                          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center">
-                            {photo.caption && (
-                              <div className="text-white text-center p-2">
-                                <p className="text-sm font-medium">{photo.caption}</p>
-                              </div>
-                            )}
-                          </div>
-                        </div>
+                        <PhotoThumbnail key={photo.id} photo={photo} />
                       ))}
                     </div>
                   )}
@@ -499,6 +551,21 @@ export default function TripDetails({ id }: TripDetailsProps) {
               onSuccess={() => setIsItineraryDialogOpen(false)} 
             />
           )}
+        </DialogContent>
+      </Dialog>
+      {/* Edit Trip Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[700px]">
+          <DialogHeader>
+            <DialogTitle>Edit Trip</DialogTitle>
+            <DialogDescription>Update trip details and save changes.</DialogDescription>
+          </DialogHeader>
+          <EditTripForm
+            trip={trip}
+            onSuccess={() => {
+              setIsEditDialogOpen(false);
+            }}
+          />
         </DialogContent>
       </Dialog>
       

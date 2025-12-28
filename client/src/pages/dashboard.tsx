@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { useAuthContext } from "@/context/auth-context";
+import type { User } from '@shared/schema';
 import { Button } from "@/components/ui/button";
 import Sidebar from "@/components/ui/sidebar";
+import { TopHeader } from "@/components/ui/sidebar";
 import MobileNav from "@/components/ui/mobile-nav";
 import StatsCard from "@/components/dashboard/stats-card";
 import TripCard from "@/components/dashboard/trip-card";
@@ -17,39 +19,75 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import AddTripForm from "@/components/trips/add-trip-form";
-import { ChevronLeft, ChevronRight, MapPin, Calendar, Images, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, MapPin, Calendar, Image, Plus } from "lucide-react";
 import { differenceInDays } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Dashboard() {
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [isAddTripDialogOpen, setIsAddTripDialogOpen] = useState(false);
+  const [isFavoritesDialogOpen, setIsFavoritesDialogOpen] = useState(false);
+  const [favoriteDestinationIds, setFavoriteDestinationIds] = useState<number[]>([]);
   const { user, userId } = useAuthContext();
   const { toast } = useToast();
 
-  const { data: dbUser } = useQuery({
+  // Load favorite destinations from localStorage on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('favorite_destinations');
+      if (stored) setFavoriteDestinationIds(JSON.parse(stored));
+    } catch (e) {
+      console.warn('Failed to load favorite destinations', e);
+    }
+  }, []);
+
+  const persistFavoriteDestinations = (ids: number[]) => {
+    try {
+      localStorage.setItem('favorite_destinations', JSON.stringify(ids));
+    } catch (e) {
+      console.warn('Failed to persist favorite destinations', e);
+    }
+  };
+
+  const handleToggleFavoriteDestination = (destinationId: number) => {
+    setFavoriteDestinationIds((prev) => {
+      const exists = prev.includes(destinationId);
+      const next = exists ? prev.filter(id => id !== destinationId) : [...prev, destinationId];
+      persistFavoriteDestinations(next);
+      toast({
+        title: exists ? 'Removed from favorites' : 'Added to favorites',
+        variant: 'default',
+      });
+      return next;
+    });
+  };
+
+  const { data: dbUser } = useQuery<User | null>({
     queryKey: [`/api/users/uid/${user?.uid}`],
     enabled: !!user?.uid,
   });
 
-  const { data: trips = [] } = useQuery({
+  const { data: trips = [] } = useQuery<any>({
     queryKey: [`/api/users/${dbUser?.id}/trips`],
     enabled: !!dbUser?.id,
   });
 
-  const { data: destinations = [] } = useQuery({
+  const { data: destinations = [] } = useQuery<any>({
     queryKey: ['/api/destinations'],
   });
 
-  const { data: notifications = [] } = useQuery({
+  const { data: notifications = [] } = useQuery<any>({
     queryKey: [`/api/users/${dbUser?.id}/notifications`],
     enabled: !!dbUser?.id,
   });
 
-  const { data: photos = [] } = useQuery({
+  const { data: photos = [] } = useQuery<any>({
     queryKey: [`/api/users/${dbUser?.id}/photos`],
     enabled: !!dbUser?.id,
   });
+
+  const favoriteTrips = (trips || []).filter((t: any) => t.isFavorite);
+  const favoriteDestinations = (destinations || []).filter((d: any) => favoriteDestinationIds.includes(d.id));
 
   // Helper function to get destination info for a trip
   const getDestinationForTrip = (destinationId: number) => {
@@ -91,8 +129,11 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen flex bg-gray-50">
-      {/* Sidebar - Desktop */}
+    <div className="min-h-screen flex flex-col bg-gray-50">
+      {/* Top Header - Desktop */}
+      <TopHeader />
+      
+      {/* Sidebar - Desktop Bottom Navigation */}
       <Sidebar />
       
       {/* Mobile Header */}
@@ -162,7 +203,7 @@ export default function Dashboard() {
               <Link href="/gallery">
                 <a className="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg">
                   <span className="text-gray-500 w-5">
-                    <Images className="h-5 w-5" />
+                    <Image className="h-5 w-5" />
                   </span>
                   <span className="ml-3">Travel Gallery</span>
                 </a>
@@ -173,7 +214,7 @@ export default function Dashboard() {
       )}
       
       {/* Main Content */}
-      <main className="flex-1 p-4 lg:p-8 mt-16 lg:mt-0 overflow-y-auto pb-16 lg:pb-8">
+      <main className="flex-1 p-4 lg:p-8 mt-16 lg:mt-16 overflow-y-auto pb-32 lg:pb-32">
         <div className="max-w-7xl mx-auto">
           {/* Welcome Section */}
           <div className="mb-8">
@@ -202,7 +243,7 @@ export default function Dashboard() {
             />
             
             <StatsCard 
-              icon={<Images />} 
+              icon={<Image />} 
               value={photos?.length || 0} 
               label="Saved Photos" 
               iconClassName="text-accent"
@@ -270,13 +311,15 @@ export default function Dashboard() {
             <div className="relative">
               <div className="flex overflow-x-auto pb-4 space-x-4 scrollbar-hide">
                 {destinations.map((destination: any) => (
-                  <DestinationCard
-                    key={destination.id}
-                    destination={destination}
-                    onSelect={() => {
-                      handleAddTrip();
-                    }}
-                  />
+                  <Link key={destination.id} href={`/destinations/${destination.id}`}>
+                    <a className="block focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-white rounded-xl">
+                      <DestinationCard
+                        destination={destination}
+                        isFavorite={favoriteDestinationIds.includes(destination.id)}
+                        onToggleFavorite={() => handleToggleFavoriteDestination(destination.id)}
+                      />
+                    </a>
+                  </Link>
                 ))}
               </div>
               
@@ -331,6 +374,28 @@ export default function Dashboard() {
                   </a>
                 </Link>
               </div>
+
+              {/* Favorites */}
+              <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100 mt-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-lg font-bold font-heading">Favorites</h2>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-primary"
+                    onClick={() => setIsFavoritesDialogOpen(true)}
+                    disabled={favoriteTrips.length === 0 && favoriteDestinations.length === 0}
+                  >
+                    View
+                  </Button>
+                </div>
+
+                {favoriteTrips.length === 0 && favoriteDestinations.length === 0 ? (
+                  <p className="text-sm text-gray-500">No favorites yet.</p>
+                ) : (
+                  <p className="text-sm text-gray-700">{favoriteTrips.length + favoriteDestinations.length} favorites saved. Click View to see them.</p>
+                )}
+              </div>
             </div>
             
             {/* Travel Gallery */}
@@ -349,7 +414,7 @@ export default function Dashboard() {
                   <PhotoGallery photos={photos} userId={dbUser?.id} />
                 ) : (
                   <div className="text-center py-12">
-                    <Images className="mx-auto h-12 w-12 text-gray-400" />
+                    <Image className="mx-auto h-12 w-12 text-gray-400" />
                     <h3 className="mt-4 text-lg font-medium text-gray-900">No photos yet</h3>
                     <p className="mt-2 text-sm text-gray-500">Upload your travel memories to your gallery.</p>
                     <Link href="/gallery">
@@ -383,6 +448,59 @@ export default function Dashboard() {
             <DialogTitle>Plan a New Trip</DialogTitle>
           </DialogHeader>
           <AddTripForm onSuccess={handleAddTripSuccess} />
+        </DialogContent>
+      </Dialog>
+
+      {/* Favorites Dialog */}
+      <Dialog open={isFavoritesDialogOpen} onOpenChange={setIsFavoritesDialogOpen}>
+        <DialogContent className="sm:max-w-[520px]">
+          <DialogHeader>
+            <DialogTitle>Your Favorites</DialogTitle>
+          </DialogHeader>
+
+          {favoriteTrips.length === 0 && favoriteDestinations.length === 0 ? (
+            <p className="text-sm text-gray-500">No favorites yet.</p>
+          ) : (
+            <div className="space-y-5">
+              {favoriteTrips.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-2">Trips</h3>
+                  <div className="space-y-2">
+                    {favoriteTrips.map((trip: any) => (
+                      <Link key={trip.id} href={`/trips/${trip.id}`}>
+                        <a className="flex items-center justify-between rounded-lg border border-gray-100 px-3 py-2 hover:bg-gray-50">
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">{trip.title}</p>
+                            <p className="text-xs text-gray-500">{getDestinationForTrip(trip.destinationId)?.name}</p>
+                          </div>
+                          <span className="text-xs text-primary font-semibold">View</span>
+                        </a>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {favoriteDestinations.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-2">Destinations</h3>
+                  <div className="space-y-2">
+                    {favoriteDestinations.map((destination: any) => (
+                      <Link key={destination.id} href={`/destinations/${destination.id}`}>
+                        <a className="flex items-center justify-between rounded-lg border border-gray-100 px-3 py-2 hover:bg-gray-50">
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">{destination.name}</p>
+                            <p className="text-xs text-gray-500">{destination.country}</p>
+                          </div>
+                          <span className="text-xs text-primary font-semibold">View</span>
+                        </a>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

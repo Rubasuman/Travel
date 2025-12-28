@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Sidebar from "@/components/ui/sidebar";
+import { TopHeader } from "@/components/ui/sidebar";
 import MobileNav from "@/components/ui/mobile-nav";
 import {
   Card,
@@ -30,11 +31,11 @@ import AddTripForm from "@/components/trips/add-trip-form";
 
 export default function Destinations() {
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedDestination, setSelectedDestination] = useState<any>(null);
   const [isPlanTripDialogOpen, setIsPlanTripDialogOpen] = useState(false);
 
-  const { data: destinations = [] } = useQuery({
+  const { data: destinations = [] } = useQuery<any>({
     queryKey: ['/api/destinations'],
   });
 
@@ -62,6 +63,7 @@ export default function Destinations() {
       destination.country.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesCategory = 
+      selectedCategory === "all" || 
       selectedCategory === "" || 
       destination.category === selectedCategory;
     
@@ -70,16 +72,19 @@ export default function Destinations() {
 
   // Get unique categories for the filter dropdown
   const categories = Array.from(
-    new Set(destinations.map((d: any) => d.category))
+    new Set(destinations.map((d: any) => d.category).filter(Boolean))
   );
 
   return (
-    <div className="min-h-screen flex bg-gray-50">
-      {/* Sidebar - Desktop */}
+    <div className="min-h-screen flex flex-col bg-gray-50">
+      {/* Top Header - Desktop */}
+      <TopHeader />
+      
+      {/* Sidebar - Desktop Bottom Navigation */}
       <Sidebar />
       
       {/* Main Content */}
-      <main className="flex-1 p-4 lg:p-8 mt-16 lg:mt-0 overflow-y-auto pb-16 lg:pb-8">
+      <main className="flex-1 p-4 lg:p-8 mt-16 lg:mt-16 overflow-y-auto pb-32 lg:pb-32">
         <div className="max-w-7xl mx-auto">
           <div className="mb-8">
             <h1 className="text-3xl font-bold font-heading">Explore Destinations</h1>

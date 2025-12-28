@@ -12,12 +12,15 @@ import {
   expenses, type Expense, type InsertExpense,
   currencyRates, type CurrencyRate, type InsertCurrencyRate
 } from "@shared/schema";
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
 export interface IStorage {
   // User operations
   getUser(id: number): Promise<User | undefined>;
   getUserByUid(uid: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  updateUser(id: number, user: Partial<User>): Promise<User | undefined>;
+  updateUser(id: number, user: Partial<User>): Promise<User | undefined>;
   
   // Destination operations
   getDestinations(): Promise<Destination[]>;
@@ -41,6 +44,7 @@ export interface IStorage {
   // Photo operations
   getPhotos(userId: number): Promise<Photo[]>;
   getTripPhotos(tripId: number): Promise<Photo[]>;
+  getPhoto(id: number): Promise<Photo | undefined>;
   createPhoto(photo: InsertPhoto): Promise<Photo>;
   deletePhoto(id: number): Promise<boolean>;
   
@@ -167,6 +171,14 @@ export class MemStorage implements IStorage {
     return user;
   }
 
+  async updateUser(id: number, userUpdate: Partial<User>): Promise<User | undefined> {
+    const existing = this.users.get(id);
+    if (!existing) return undefined;
+    const updated = { ...existing, ...userUpdate, id };
+    this.users.set(id, updated);
+    return updated;
+  }
+
   // Destination operations
   async getDestinations(): Promise<Destination[]> {
     return Array.from(this.destinations.values());
@@ -271,6 +283,10 @@ export class MemStorage implements IStorage {
 
   async getTripPhotos(tripId: number): Promise<Photo[]> {
     return Array.from(this.photos.values()).filter(photo => photo.tripId === tripId);
+  }
+
+  async getPhoto(id: number): Promise<Photo | undefined> {
+    return this.photos.get(id);
   }
 
   async createPhoto(photo: InsertPhoto): Promise<Photo> {
@@ -430,8 +446,10 @@ export class MemStorage implements IStorage {
     const newBudget: Budget = { 
       ...budget, 
       id,
-      createdAt: budget.createdAt || new Date(),
-      updatedAt: budget.updatedAt || new Date()
+  // ensure currency is always present (required by Budget type)
+  currency: budget.currency ?? 'USD',
+  createdAt: budget.createdAt || new Date(),
+  updatedAt: budget.updatedAt || new Date()
     };
     this.budgets.set(id, newBudget);
     return newBudget;
@@ -468,6 +486,8 @@ export class MemStorage implements IStorage {
     const newExpense: Expense = { 
       ...expense, 
       id,
+  // ensure currency is always present (required by Expense type)
+  currency: expense.currency ?? 'USD',
       budgetId: expense.budgetId ?? null,
       originalAmount: expense.originalAmount ?? null,
       originalCurrency: expense.originalCurrency ?? null,
@@ -573,6 +593,18 @@ export class MemStorage implements IStorage {
         rating: "4.8",
         category: "City",
         address: "Tokyo, Japan"
+      },
+      {
+        name: "Delhi",
+        country: "India",
+        city: "Delhi",
+        description: "Explore India's capital city where ancient monuments blend seamlessly with modern architecture. Experience the bustling markets, spiritual temples, and rich Mughal heritage in this vibrant metropolis that serves as the heart of India.",
+        imageUrl: "https://plus.unsplash.com/premium_photo-1661919589683-f11880119fb7?q=80&w=1470&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+        latitude: "28.6139",
+        longitude: "77.2090",
+        rating: "4.6",
+        category: "City",
+        address: "Delhi, India"
       }
     ];
 
@@ -641,7 +673,824 @@ export class MemStorage implements IStorage {
       openingHours: {"monday": "6:00-17:00", "tuesday": "6:00-17:00", "wednesday": "6:00-17:00", "thursday": "6:00-17:00", "friday": "6:00-17:00", "saturday": "6:00-17:00", "sunday": "6:00-17:00"},
       priceRange: "Free"
     });
+
+    // Rome hotels and places
+    this.createHotel({
+      name: "Hotel de' Ricci",
+      destinationId: 2,
+      address: "Via delle Carrozze, 7, 00186 Rome, Italy",
+      latitude: "41.9009",
+      longitude: "12.4833",
+      rating: "4.7",
+      pricePerNight: "220.00",
+      description: "Boutique hotel located close to Rome's historic centre with intimate rooms and personalized service.",
+      amenities: ["Bar", "Concierge", "Breakfast"],
+      imageUrls: ["https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80"],
+      website: "https://www.hoteldericci.com",
+      phone: "+39 06 700 1234"
+    });
+
+    this.createPlace({
+      name: "Colosseum",
+      destinationId: 2,
+      address: "Piazza del Colosseo, 1, 00184 Roma RM, Italy",
+      latitude: "41.8902",
+      longitude: "12.4922",
+      category: "Attraction",
+      rating: "4.8",
+      description: "An iconic symbol of Imperial Rome; ancient amphitheatre and major tourist attraction.",
+      imageUrls: ["https://images.unsplash.com/photo-1549893079-8a1b9c8f3d07?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80"],
+      openingHours: {"monday": "8:30-19:00", "tuesday": "8:30-19:00", "wednesday": "8:30-19:00", "thursday": "8:30-19:00", "friday": "8:30-19:00", "saturday": "8:30-19:00", "sunday": "8:30-19:00"},
+      priceRange: "$$"
+    });
+
+    // Santorini hotels and places
+    this.createHotel({
+      name: "Santorini Suites",
+      destinationId: 3,
+      address: "Oia, Santorini, Greece",
+      latitude: "36.4616",
+      longitude: "25.3750",
+      rating: "4.9",
+      pricePerNight: "350.00",
+      description: "Clifftop suites with caldera views and private terraces.",
+      amenities: ["Breakfast", "Terrace", "Airport Transfer"],
+      imageUrls: ["https://images.unsplash.com/photo-1505765053186-0a2f1f3b8d6d?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80"],
+      website: "https://www.santorinisuites.example",
+      phone: "+30 2286 123456"
+    });
+
+    this.createPlace({
+      name: "Oia Sunset Point",
+      destinationId: 3,
+      address: "Oia, 84702, Santorini, Greece",
+      latitude: "36.4619",
+      longitude: "25.3755",
+      category: "Scenic",
+      rating: "4.9",
+      description: "Famous sunset viewpoint offering breathtaking views over the caldera.",
+      imageUrls: ["https://images.unsplash.com/photo-1507525428034-b723cf961d3e?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80"],
+      openingHours: {"daily": "All day"},
+      priceRange: "Free"
+    });
+
+    // New York hotels and places
+    this.createHotel({
+      name: "The Midtown Grand",
+      destinationId: 4,
+      address: "45 W 45th St, New York, NY 10036, USA",
+      latitude: "40.7561",
+      longitude: "-73.9845",
+      rating: "4.6",
+      pricePerNight: "320.00",
+      description: "Comfortable downtown hotel close to Times Square and Broadway theaters.",
+      amenities: ["Gym", "Restaurant", "Room Service"],
+      imageUrls: ["https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80"],
+      website: "https://www.midtowngrand.example",
+      phone: "+1 212-555-0123"
+    });
+
+    this.createPlace({
+      name: "Central Park",
+      destinationId: 4,
+      address: "New York, NY, USA",
+      latitude: "40.7851",
+      longitude: "-73.9683",
+      category: "Park",
+      rating: "4.8",
+      description: "Large public park in the center of Manhattan offering walking paths, lakes, and attractions.",
+      imageUrls: ["https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80"],
+      openingHours: {"daily": "06:00-01:00"},
+      priceRange: "Free"
+    });
+
+    // Additional Tokyo place
+    this.createPlace({
+      name: "Shibuya Crossing",
+      destinationId: 5,
+      address: "Shibuya, Tokyo, Japan",
+      latitude: "35.6595",
+      longitude: "139.7005",
+      category: "Landmark",
+      rating: "4.6",
+      description: "Bustling intersection known for its scramble crossing and neon signage.",
+      imageUrls: ["https://images.unsplash.com/photo-1508766206392-8bd5cf550d1b?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80"],
+      openingHours: {"daily": "All day"},
+      priceRange: "Free"
+    });
+
+    // Delhi hotels and places
+    this.createHotel({
+      name: "The Grand Delhi",
+      destinationId: 6,
+      address: "1 Rajendra Place, New Delhi 110001, India",
+      latitude: "28.5921",
+      longitude: "77.2315",
+      rating: "4.7",
+      pricePerNight: "150.00",
+      description: "Five-star luxury hotel offering world-class hospitality in the heart of New Delhi. Features elegant rooms, award-winning restaurants, rejuvenating spa, and premium business facilities with impeccable service.",
+      amenities: ["Spa", "Restaurant", "Fitness Center", "Business Center", "Concierge", "Pool", "Room Service"],
+      imageUrls: ["https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80"],
+      website: "https://www.thegranddelhi.example",
+      phone: "+91 11-4108 1010"
+    });
+
+    this.createPlace({
+      name: "India Gate",
+      destinationId: 6,
+      address: "Rajpath, New Delhi, 110001, India",
+      latitude: "28.6129",
+      longitude: "77.2295",
+      category: "Monument",
+      rating: "4.7",
+      description: "The iconic India Gate is a war memorial and one of Delhi's most recognizable landmarks. This 42-meter high archway stands at the center of New Delhi and is a symbol of Indian independence. A popular gathering spot for locals and tourists alike, surrounded by beautiful lawns and cafes.",
+      imageUrls: ["https://images.unsplash.com/photo-1587474260584-136574528ed5?q=80&w=1470&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D"],
+      openingHours: {"daily": "24 hours"},
+      priceRange: "Free"
+    });
+
+    this.createPlace({
+      name: "Jama Masjid",
+      destinationId: 6,
+      address: "Chandni Chowk, Old Delhi, 110006, India",
+      latitude: "28.6505",
+      longitude: "77.2306",
+      category: "Religious Site",
+      rating: "4.6",
+      description: "One of the largest and most impressive mosques in India, built by Mughal Emperor Shah Jahan in 1656. Jama Masjid features stunning red sandstone architecture, three grand gates, and accommodates up to 25,000 worshippers. Located in the heart of Old Delhi's bustling Chandni Chowk market, it's a masterpiece of Mughal craftsmanship.",
+      imageUrls: ["https://plus.unsplash.com/premium_photo-1697730390709-48bebc012175?q=80&w=1470&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D"],
+      openingHours: {"daily": "07:00-22:00"},
+      priceRange: "Free"
+    });
   }
 }
 
-export const storage = new MemStorage();
+// Helper: convert snake_case keys to camelCase (basic)
+function snakeToCamelRow(row: any) {
+  if (!row || typeof row !== 'object') return row;
+  const out: any = {};
+  for (const k of Object.keys(row)) {
+    const v = row[k];
+    const parts = k.split('_');
+    const camel = parts[0] + parts.slice(1).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join('');
+    out[camel] = v;
+  }
+  return out;
+}
+
+function snakeToCamelArray(rows: any[]) {
+  return (rows || []).map(r => snakeToCamelRow(r));
+}
+
+function camelToSnakeRow(row: any) {
+  if (!row || typeof row !== 'object') return row;
+  const out: any = {};
+  for (const k of Object.keys(row)) {
+    const v = row[k];
+    // Convert camelCase to snake_case:
+    // userId -> user_id
+    // photoURL -> photo_url (not photo_u_r_l)
+    // displayName -> display_name
+    const snake = k
+      .replace(/([A-Z]+)([A-Z][a-z])/g, '$1_$2') // Handle consecutive capitals: URLParser -> URL_Parser
+      .replace(/([a-z\d])([A-Z])/g, '$1_$2') // Handle regular camelCase: userId -> user_Id
+      .toLowerCase();
+    out[snake] = v;
+  }
+  return out;
+}
+
+class SupabaseStorage implements IStorage {
+  private sb: any;
+
+  constructor() {
+    const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE;
+    if (!supabaseUrl || !serviceKey) throw new Error('Supabase service key not configured for SupabaseStorage');
+    this.sb = createSupabaseClient(supabaseUrl, serviceKey);
+  }
+
+  // User operations
+  async getUser(id: number): Promise<User | undefined> {
+    const { data, error } = await this.sb.from('users').select('*').eq('id', id).maybeSingle();
+    if (error) throw error;
+    return data ? snakeToCamelRow(data) as any : undefined;
+  }
+
+  async getUserByUid(uid: string): Promise<User | undefined> {
+    const { data, error } = await this.sb.from('users').select('*').eq('uid', uid).maybeSingle();
+    if (error) throw error;
+    return data ? snakeToCamelRow(data) as any : undefined;
+  }
+
+  async createUser(user: InsertUser): Promise<User> {
+    const row = camelToSnakeRow(user);
+    const { data, error } = await this.sb.from('users').insert([row]).select();
+    if (error) throw error;
+    const created = Array.isArray(data) ? data[0] : data;
+    return snakeToCamelRow(created) as any;
+  }
+
+  async updateUser(id: number, userUpdate: Partial<User>): Promise<User | undefined> {
+    console.log('[SupabaseStorage.updateUser] Updating user:', id, 'with:', userUpdate);
+    const row = camelToSnakeRow(userUpdate as any);
+    console.log('[SupabaseStorage.updateUser] Converted to snake_case:', row);
+    const { data, error } = await this.sb.from('users').update(row).eq('id', id).select();
+    if (error) {
+      console.error('[SupabaseStorage.updateUser] Supabase error:', error);
+      throw error;
+    }
+    const updated = Array.isArray(data) ? data[0] : data;
+    console.log('[SupabaseStorage.updateUser] Result:', updated);
+    return updated ? snakeToCamelRow(updated) as any : undefined;
+  }
+
+  // Destinations
+  async getDestinations(): Promise<Destination[]> {
+    const { data, error } = await this.sb.from('destinations').select('*');
+    if (error) throw error;
+    return snakeToCamelArray(data) as any;
+  }
+
+  async getDestination(id: number): Promise<Destination | undefined> {
+    const { data, error } = await this.sb.from('destinations').select('*').eq('id', id).maybeSingle();
+    if (error) throw error;
+    return data ? snakeToCamelRow(data) as any : undefined;
+  }
+
+  async createDestination(destination: InsertDestination): Promise<Destination> {
+    const row = camelToSnakeRow(destination);
+    const { data, error } = await this.sb.from('destinations').insert([row]).select();
+    if (error) throw error;
+    return snakeToCamelRow(Array.isArray(data) ? data[0] : data) as any;
+  }
+
+  // Trips
+  async getTrips(userId: number): Promise<Trip[]> {
+    const { data, error } = await this.sb.from('trips').select('*').eq('user_id', userId);
+    if (error) throw error;
+    return snakeToCamelArray(data) as any;
+  }
+
+  async getTrip(id: number): Promise<Trip | undefined> {
+    const { data, error } = await this.sb.from('trips').select('*').eq('id', id).maybeSingle();
+    if (error) throw error;
+    return data ? snakeToCamelRow(data) as any : undefined;
+  }
+
+  async createTrip(trip: InsertTrip): Promise<Trip> {
+    const row = camelToSnakeRow(trip);
+    const { data, error } = await this.sb.from('trips').insert([row]).select();
+    if (error) throw error;
+    return snakeToCamelRow(Array.isArray(data) ? data[0] : data) as any;
+  }
+
+  async updateTrip(id: number, tripUpdate: Partial<Trip>): Promise<Trip | undefined> {
+    const row = camelToSnakeRow(tripUpdate as any);
+    const { data, error } = await this.sb.from('trips').update(row).eq('id', id).select();
+    if (error) throw error;
+    const updated = Array.isArray(data) ? data[0] : data;
+    return updated ? snakeToCamelRow(updated) as any : undefined;
+  }
+
+  async deleteTrip(id: number): Promise<boolean> {
+    const { error } = await this.sb.from('trips').delete().eq('id', id);
+    if (error) throw error;
+    return true;
+  }
+
+  // Itineraries
+  async getItineraries(tripId: number): Promise<Itinerary[]> {
+    const { data, error } = await this.sb.from('itineraries').select('*').eq('trip_id', tripId).order('day', { ascending: true });
+    if (error) throw error;
+    return snakeToCamelArray(data) as any;
+  }
+
+  async getItinerary(id: number): Promise<Itinerary | undefined> {
+    const { data, error } = await this.sb.from('itineraries').select('*').eq('id', id).maybeSingle();
+    if (error) throw error;
+    return data ? snakeToCamelRow(data) as any : undefined;
+  }
+
+  async createItinerary(itinerary: InsertItinerary): Promise<Itinerary> {
+    const row = camelToSnakeRow(itinerary as any);
+    const { data, error } = await this.sb.from('itineraries').insert([row]).select();
+    if (error) throw error;
+    return snakeToCamelRow(Array.isArray(data) ? data[0] : data) as any;
+  }
+
+  async updateItinerary(id: number, itineraryUpdate: Partial<Itinerary>): Promise<Itinerary | undefined> {
+    const row = camelToSnakeRow(itineraryUpdate as any);
+    const { data, error } = await this.sb.from('itineraries').update(row).eq('id', id).select();
+    if (error) throw error;
+    const updated = Array.isArray(data) ? data[0] : data;
+    return updated ? snakeToCamelRow(updated) as any : undefined;
+  }
+
+  async deleteItinerary(id: number): Promise<boolean> {
+    const { error } = await this.sb.from('itineraries').delete().eq('id', id);
+    if (error) throw error;
+    return true;
+  }
+
+  // Photos
+  async getPhotos(userId: number): Promise<Photo[]> {
+    const { data, error } = await this.sb.from('photos').select('*').eq('user_id', userId);
+    if (error) throw error;
+    return snakeToCamelArray(data) as any;
+  }
+
+  async getTripPhotos(tripId: number): Promise<Photo[]> {
+    const { data, error } = await this.sb.from('photos').select('*').eq('trip_id', tripId);
+    if (error) throw error;
+    return snakeToCamelArray(data) as any;
+  }
+
+  async getPhoto(id: number): Promise<Photo | undefined> {
+    const { data, error } = await this.sb.from('photos').select('*').eq('id', id).maybeSingle();
+    if (error) throw error;
+    return data ? snakeToCamelRow(data) as any : undefined;
+  }
+
+  async createPhoto(photo: InsertPhoto): Promise<Photo> {
+    const row = camelToSnakeRow(photo as any);
+    const { data, error } = await this.sb.from('photos').insert([row]).select();
+    if (error) throw error;
+    return snakeToCamelRow(Array.isArray(data) ? data[0] : data) as any;
+  }
+
+  async deletePhoto(id: number): Promise<boolean> {
+    // First, get the photo to retrieve its image URL (file path)
+    const { data: photoData, error: selectError } = await this.sb.from('photos').select('*').eq('id', id).maybeSingle();
+    if (selectError) throw selectError;
+    
+    if (!photoData) {
+      return false; // Photo not found
+    }
+
+    // Delete from storage if imageUrl exists
+    if (photoData.image_url) {
+      try {
+        // imageUrl is in format "bucket/path/to/file" or just "path/to/file"
+        let filePath = photoData.image_url;
+        
+        // If it includes the bucket name, extract just the path
+        if (filePath.startsWith('photos/')) {
+          filePath = filePath.substring('photos/'.length);
+        }
+
+        const { error: deleteStorageError } = await this.sb.storage
+          .from('photos')
+          .remove([filePath]);
+
+        if (deleteStorageError) {
+          console.error('Failed to delete photo from storage:', deleteStorageError);
+          // Continue with database deletion even if storage deletion fails
+        }
+      } catch (storageErr) {
+        console.error('Storage deletion error:', storageErr);
+        // Continue with database deletion
+      }
+    }
+
+    // Delete from database
+    const { error: deleteDbError } = await this.sb.from('photos').delete().eq('id', id);
+    if (deleteDbError) throw deleteDbError;
+    
+    return true;
+  }
+
+  // Notifications
+  async getNotifications(userId: number): Promise<Notification[]> {
+    const { data, error } = await this.sb.from('notifications').select('*').eq('user_id', userId).order('created_at', { ascending: false });
+    if (error) throw error;
+    return snakeToCamelArray(data) as any;
+  }
+
+  async createNotification(notification: InsertNotification): Promise<Notification> {
+    const row = camelToSnakeRow(notification as any);
+    const { data, error } = await this.sb.from('notifications').insert([row]).select();
+    if (error) throw error;
+    return snakeToCamelRow(Array.isArray(data) ? data[0] : data) as any;
+  }
+
+  async markNotificationAsRead(id: number): Promise<boolean> {
+    const { error } = await this.sb.from('notifications').update({ is_read: true }).eq('id', id);
+    if (error) throw error;
+    return true;
+  }
+
+  // Hotels
+  async getHotels(destinationId: number): Promise<Hotel[]> {
+    const { data, error } = await this.sb.from('hotels').select('*').eq('destination_id', destinationId);
+    if (error) throw error;
+    return snakeToCamelArray(data) as any;
+  }
+
+  async getHotel(id: number): Promise<Hotel | undefined> {
+    const { data, error } = await this.sb.from('hotels').select('*').eq('id', id).maybeSingle();
+    if (error) throw error;
+    return data ? snakeToCamelRow(data) as any : undefined;
+  }
+
+  async createHotel(hotel: InsertHotel): Promise<Hotel> {
+    const row = camelToSnakeRow(hotel as any);
+    const { data, error } = await this.sb.from('hotels').insert([row]).select();
+    if (error) throw error;
+    return snakeToCamelRow(Array.isArray(data) ? data[0] : data) as any;
+  }
+
+  // Places
+  async getPlaces(destinationId: number): Promise<Place[]> {
+    const { data, error } = await this.sb.from('places').select('*').eq('destination_id', destinationId);
+    if (error) throw error;
+    return snakeToCamelArray(data) as any;
+  }
+
+  async getPlace(id: number): Promise<Place | undefined> {
+    const { data, error } = await this.sb.from('places').select('*').eq('id', id).maybeSingle();
+    if (error) throw error;
+    return data ? snakeToCamelRow(data) as any : undefined;
+  }
+
+  async createPlace(place: InsertPlace): Promise<Place> {
+    const row = camelToSnakeRow(place as any);
+    const { data, error } = await this.sb.from('places').insert([row]).select();
+    if (error) throw error;
+    return snakeToCamelRow(Array.isArray(data) ? data[0] : data) as any;
+  }
+
+  // Reviews
+  async getReviews(hotelId?: number, placeId?: number): Promise<Review[]> {
+    let q = this.sb.from('reviews').select('*');
+    if (hotelId) q = q.eq('hotel_id', hotelId);
+    if (placeId) q = q.eq('place_id', placeId);
+    const { data, error } = await q;
+    if (error) throw error;
+    return snakeToCamelArray(data) as any;
+  }
+
+  async getReview(id: number): Promise<Review | undefined> {
+    const { data, error } = await this.sb.from('reviews').select('*').eq('id', id).maybeSingle();
+    if (error) throw error;
+    return data ? snakeToCamelRow(data) as any : undefined;
+  }
+
+  async createReview(review: InsertReview): Promise<Review> {
+    const row = camelToSnakeRow(review as any);
+    const { data, error } = await this.sb.from('reviews').insert([row]).select();
+    if (error) throw error;
+    return snakeToCamelRow(Array.isArray(data) ? data[0] : data) as any;
+  }
+
+  async updateReview(id: number, reviewUpdate: Partial<Review>): Promise<Review | undefined> {
+    const row = camelToSnakeRow(reviewUpdate as any);
+    const { data, error } = await this.sb.from('reviews').update(row).eq('id', id).select();
+    if (error) throw error;
+    const updated = Array.isArray(data) ? data[0] : data;
+    return updated ? snakeToCamelRow(updated) as any : undefined;
+  }
+
+  async deleteReview(id: number): Promise<boolean> {
+    const { error } = await this.sb.from('reviews').delete().eq('id', id);
+    if (error) throw error;
+    return true;
+  }
+
+  // Budgets
+  async getBudgets(tripId: number): Promise<Budget[]> {
+    const { data, error } = await this.sb.from('budgets').select('*').eq('trip_id', tripId);
+    if (error) throw error;
+    return snakeToCamelArray(data) as any;
+  }
+
+  async getBudget(id: number): Promise<Budget | undefined> {
+    const { data, error } = await this.sb.from('budgets').select('*').eq('id', id).maybeSingle();
+    if (error) throw error;
+    return data ? snakeToCamelRow(data) as any : undefined;
+  }
+
+  async getBudgetByTrip(tripId: number): Promise<Budget | undefined> {
+    const { data, error } = await this.sb.from('budgets').select('*').eq('trip_id', tripId).limit(1).maybeSingle();
+    if (error) throw error;
+    return data ? snakeToCamelRow(data) as any : undefined;
+  }
+
+  async createBudget(budget: InsertBudget): Promise<Budget> {
+    const row = camelToSnakeRow(budget as any);
+    const { data, error } = await this.sb.from('budgets').insert([row]).select();
+    if (error) throw error;
+    return snakeToCamelRow(Array.isArray(data) ? data[0] : data) as any;
+  }
+
+  async updateBudget(id: number, budgetUpdate: Partial<Budget>): Promise<Budget | undefined> {
+    const row = camelToSnakeRow(budgetUpdate as any);
+    const { data, error } = await this.sb.from('budgets').update(row).eq('id', id).select();
+    if (error) throw error;
+    const updated = Array.isArray(data) ? data[0] : data;
+    return updated ? snakeToCamelRow(updated) as any : undefined;
+  }
+
+  async deleteBudget(id: number): Promise<boolean> {
+    const { error } = await this.sb.from('budgets').delete().eq('id', id);
+    if (error) throw error;
+    return true;
+  }
+
+  // Expenses
+  async getExpenses(tripId: number): Promise<Expense[]> {
+    const { data, error } = await this.sb.from('expenses').select('*').eq('trip_id', tripId);
+    if (error) throw error;
+    return snakeToCamelArray(data) as any;
+  }
+
+  async getExpensesByBudget(budgetId: number): Promise<Expense[]> {
+    const { data, error } = await this.sb.from('expenses').select('*').eq('budget_id', budgetId);
+    if (error) throw error;
+    return snakeToCamelArray(data) as any;
+  }
+
+  async getExpense(id: number): Promise<Expense | undefined> {
+    const { data, error } = await this.sb.from('expenses').select('*').eq('id', id).maybeSingle();
+    if (error) throw error;
+    return data ? snakeToCamelRow(data) as any : undefined;
+  }
+
+  async createExpense(expense: InsertExpense): Promise<Expense> {
+    const row = camelToSnakeRow(expense as any);
+    const { data, error } = await this.sb.from('expenses').insert([row]).select();
+    if (error) throw error;
+    return snakeToCamelRow(Array.isArray(data) ? data[0] : data) as any;
+  }
+
+  async updateExpense(id: number, expenseUpdate: Partial<Expense>): Promise<Expense | undefined> {
+    const row = camelToSnakeRow(expenseUpdate as any);
+    const { data, error } = await this.sb.from('expenses').update(row).eq('id', id).select();
+    if (error) throw error;
+    const updated = Array.isArray(data) ? data[0] : data;
+    return updated ? snakeToCamelRow(updated) as any : undefined;
+  }
+
+  async deleteExpense(id: number): Promise<boolean> {
+    const { error } = await this.sb.from('expenses').delete().eq('id', id);
+    if (error) throw error;
+    return true;
+  }
+
+  // Currency rates
+  async getCurrencyRate(baseCurrency: string, targetCurrency: string): Promise<CurrencyRate | undefined> {
+    const { data, error } = await this.sb.from('currency_rates').select('*').eq('base_currency', baseCurrency).eq('target_currency', targetCurrency).maybeSingle();
+    if (error) throw error;
+    return data ? snakeToCamelRow(data) as any : undefined;
+  }
+
+  async createOrUpdateCurrencyRate(rate: InsertCurrencyRate): Promise<CurrencyRate> {
+    const row = camelToSnakeRow(rate as any);
+    const { data, error } = await this.sb.from('currency_rates').upsert([row], { onConflict: ['base_currency','target_currency'] }).select();
+    if (error) throw error;
+    return snakeToCamelRow(Array.isArray(data) ? data[0] : data) as any;
+  }
+}
+
+// Export storage: prefer SupabaseStorage when service key is present, otherwise fall back to MemStorage
+// HybridStorage: use SupabaseStorage only for trip-related methods; use MemStorage for everything else.
+class HybridStorage implements IStorage {
+  private mem: MemStorage;
+  private sb?: SupabaseStorage;
+
+  constructor() {
+    this.mem = new MemStorage();
+    try {
+      const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE;
+      const supabaseUrl = process.env.SUPABASE_URL;
+      
+      console.log('[storage] HybridStorage constructor:');
+      console.log('  - SUPABASE_URL:', supabaseUrl ? '✓ SET' : '✗ NOT SET');
+      console.log('  - SERVICE_ROLE_KEY:', serviceKey ? `✓ SET (length: ${serviceKey.length})` : '✗ NOT SET');
+      
+      if (serviceKey && supabaseUrl) {
+        this.sb = new SupabaseStorage();
+        console.log('[storage] ✓ SupabaseStorage initialized - data will be stored in Supabase');
+      } else {
+        console.log('[storage] ✗ SupabaseStorage NOT initialized - data will be stored in memory only');
+        console.log('[storage] Missing:', !supabaseUrl ? 'SUPABASE_URL' : '', !serviceKey ? 'SUPABASE_SERVICE_ROLE_KEY' : '');
+      }
+    } catch (err) {
+      console.warn('[storage] ✗ Failed to initialize SupabaseStorage:', err);
+      this.sb = undefined;
+    }
+  }
+
+  // User operations -> Supabase if available, else mem
+  async getUser(id: number) {
+    if (this.sb) return this.sb.getUser(id);
+    return this.mem.getUser(id);
+  }
+  async getUserByUid(uid: string) {
+    if (this.sb) return this.sb.getUserByUid(uid);
+    return this.mem.getUserByUid(uid);
+  }
+  async createUser(user: InsertUser) {
+    if (this.sb) return this.sb.createUser(user);
+    return this.mem.createUser(user);
+  }
+  async updateUser(id: number, user: Partial<User>) {
+    if (this.sb) return this.sb.updateUser(id, user);
+    return this.mem.updateUser(id, user);
+  }
+  async updateUser(id: number, user: Partial<User>) {
+    if (this.sb) return this.sb.updateUser(id, user);
+    return this.mem.updateUser(id, user);
+  }
+
+  // Destinations -> Supabase if available, else mem
+  async getDestinations() {
+    if (this.sb) return this.sb.getDestinations();
+    return this.mem.getDestinations();
+  }
+  async getDestination(id: number) {
+    if (this.sb) return this.sb.getDestination(id);
+    return this.mem.getDestination(id);
+  }
+  async createDestination(destination: InsertDestination) {
+    if (this.sb) return this.sb.createDestination(destination);
+    return this.mem.createDestination(destination);
+  }
+
+  // Trip operations -> prefer SupabaseStorage when available, else mem
+  async getTrips(userId: number) {
+    if (this.sb) return this.sb.getTrips(userId);
+    return this.mem.getTrips(userId);
+  }
+  async getTrip(id: number) {
+    if (this.sb) return this.sb.getTrip(id);
+    return this.mem.getTrip(id);
+  }
+  async createTrip(trip: InsertTrip) {
+    if (this.sb) return this.sb.createTrip(trip);
+    return this.mem.createTrip(trip);
+  }
+  async updateTrip(id: number, trip: Partial<Trip>) {
+    if (this.sb) return this.sb.updateTrip(id, trip);
+    return this.mem.updateTrip(id, trip);
+  }
+  async deleteTrip(id: number) {
+    if (this.sb) return this.sb.deleteTrip(id);
+    return this.mem.deleteTrip(id);
+  }
+
+  // Itineraries -> Supabase if available, else mem
+  async getItineraries(tripId: number) {
+    if (this.sb) return this.sb.getItineraries(tripId);
+    return this.mem.getItineraries(tripId);
+  }
+  async getItinerary(id: number) {
+    if (this.sb) return this.sb.getItinerary(id);
+    return this.mem.getItinerary(id);
+  }
+  async createItinerary(itinerary: InsertItinerary) {
+    if (this.sb) return this.sb.createItinerary(itinerary);
+    return this.mem.createItinerary(itinerary);
+  }
+  async updateItinerary(id: number, itinerary: Partial<Itinerary>) {
+    if (this.sb) return this.sb.updateItinerary(id, itinerary);
+    return this.mem.updateItinerary(id, itinerary);
+  }
+  async deleteItinerary(id: number) {
+    if (this.sb) return this.sb.deleteItinerary(id);
+    return this.mem.deleteItinerary(id);
+  }
+
+  // Photos -> Supabase if available, else mem
+  async getPhotos(userId: number) {
+    if (this.sb) return this.sb.getPhotos(userId);
+    return this.mem.getPhotos(userId);
+  }
+  async getTripPhotos(tripId: number) {
+    if (this.sb) return this.sb.getTripPhotos(tripId);
+    return this.mem.getTripPhotos(tripId);
+  }
+  async getPhoto(id: number) {
+    if (this.sb) return this.sb.getPhoto(id);
+    return this.mem.getPhoto(id);
+  }
+  async createPhoto(photo: InsertPhoto) {
+    if (this.sb) return this.sb.createPhoto(photo);
+    return this.mem.createPhoto(photo);
+  }
+  async deletePhoto(id: number) {
+    if (this.sb) return this.sb.deletePhoto(id);
+    return this.mem.deletePhoto(id);
+  }
+
+  // Notifications -> mem
+  getNotifications(userId: number) { return this.mem.getNotifications(userId); }
+  createNotification(notification: InsertNotification) { return this.mem.createNotification(notification); }
+  markNotificationAsRead(id: number) { return this.mem.markNotificationAsRead(id); }
+
+  // Hotels/Places/Reviews/Budgets/Expenses/Currency -> mem
+  getHotels(destinationId: number) { return this.mem.getHotels(destinationId); }
+  getHotel(id: number) { return this.mem.getHotel(id); }
+  createHotel(hotel: InsertHotel) { return this.mem.createHotel(hotel); }
+
+  getPlaces(destinationId: number) { return this.mem.getPlaces(destinationId); }
+  getPlace(id: number) { return this.mem.getPlace(id); }
+  createPlace(place: InsertPlace) { return this.mem.createPlace(place); }
+
+  getReviews(hotelId?: number, placeId?: number) { return this.mem.getReviews(hotelId, placeId); }
+  getReview(id: number) { return this.mem.getReview(id); }
+  createReview(review: InsertReview) { return this.mem.createReview(review); }
+  updateReview(id: number, review: Partial<Review>) { return this.mem.updateReview(id, review); }
+  deleteReview(id: number) { return this.mem.deleteReview(id); }
+
+  getBudgets(tripId: number) { return this.mem.getBudgets(tripId); }
+  getBudget(id: number) { return this.mem.getBudget(id); }
+  getBudgetByTrip(tripId: number) { return this.mem.getBudgetByTrip(tripId); }
+  createBudget(budget: InsertBudget) { return this.mem.createBudget(budget); }
+  updateBudget(id: number, budget: Partial<Budget>) { return this.mem.updateBudget(id, budget); }
+  deleteBudget(id: number) { return this.mem.deleteBudget(id); }
+
+  getExpenses(tripId: number) { return this.mem.getExpenses(tripId); }
+  getExpensesByBudget(budgetId: number) { return this.mem.getExpensesByBudget(budgetId); }
+  getExpense(id: number) { return this.mem.getExpense(id); }
+  createExpense(expense: InsertExpense) { return this.mem.createExpense(expense); }
+  updateExpense(id: number, expense: Partial<Expense>) { return this.mem.updateExpense(id, expense); }
+  deleteExpense(id: number) { return this.mem.deleteExpense(id); }
+
+  getCurrencyRate(baseCurrency: string, targetCurrency: string) { return this.mem.getCurrencyRate(baseCurrency, targetCurrency); }
+  createOrUpdateCurrencyRate(rate: InsertCurrencyRate) { return this.mem.createOrUpdateCurrencyRate(rate); }
+}
+
+let storageInstance: IStorage | null = null;
+
+function getStorage(): IStorage {
+  if (!storageInstance) {
+    storageInstance = new HybridStorage();
+    console.log('[storage] Using HybridStorage: users, destinations, trips, itineraries, photos -> Supabase (if configured), other data -> MemStorage');
+  }
+  return storageInstance;
+}
+
+export const storage = {
+  getUser: (id: number) => getStorage().getUser(id),
+  getUserByUid: (uid: string) => getStorage().getUserByUid(uid),
+  createUser: (user: InsertUser) => getStorage().createUser(user),
+  updateUser: (id: number, user: Partial<User>) => getStorage().updateUser(id, user),
+  
+  getDestinations: () => getStorage().getDestinations(),
+  getDestination: (id: number) => getStorage().getDestination(id),
+  createDestination: (destination: InsertDestination) => getStorage().createDestination(destination),
+  
+  getTrips: (userId: number) => getStorage().getTrips(userId),
+  getTrip: (id: number) => getStorage().getTrip(id),
+  createTrip: (trip: InsertTrip) => getStorage().createTrip(trip),
+  updateTrip: (id: number, trip: Partial<Trip>) => getStorage().updateTrip(id, trip),
+  deleteTrip: (id: number) => getStorage().deleteTrip(id),
+  
+  getItineraries: (tripId: number) => getStorage().getItineraries(tripId),
+  getItinerary: (id: number) => getStorage().getItinerary(id),
+  createItinerary: (itinerary: InsertItinerary) => getStorage().createItinerary(itinerary),
+  updateItinerary: (id: number, itinerary: Partial<Itinerary>) => getStorage().updateItinerary(id, itinerary),
+  deleteItinerary: (id: number) => getStorage().deleteItinerary(id),
+  
+  getPhotos: (userId: number) => getStorage().getPhotos(userId),
+  getTripPhotos: (tripId: number) => getStorage().getTripPhotos(tripId),
+  getPhoto: (id: number) => getStorage().getPhoto(id),
+  createPhoto: (photo: InsertPhoto) => getStorage().createPhoto(photo),
+  deletePhoto: (id: number) => getStorage().deletePhoto(id),
+  
+  getNotifications: (userId: number) => getStorage().getNotifications(userId),
+  createNotification: (notification: InsertNotification) => getStorage().createNotification(notification),
+  markNotificationAsRead: (id: number) => getStorage().markNotificationAsRead(id),
+  
+  getHotels: (destinationId: number) => getStorage().getHotels(destinationId),
+  getHotel: (id: number) => getStorage().getHotel(id),
+  createHotel: (hotel: InsertHotel) => getStorage().createHotel(hotel),
+  
+  getPlaces: (destinationId: number) => getStorage().getPlaces(destinationId),
+  getPlace: (id: number) => getStorage().getPlace(id),
+  createPlace: (place: InsertPlace) => getStorage().createPlace(place),
+  
+  getReviews: (hotelId?: number, placeId?: number) => getStorage().getReviews(hotelId, placeId),
+  getReview: (id: number) => getStorage().getReview(id),
+  createReview: (review: InsertReview) => getStorage().createReview(review),
+  updateReview: (id: number, review: Partial<Review>) => getStorage().updateReview(id, review),
+  deleteReview: (id: number) => getStorage().deleteReview(id),
+  
+  getBudgets: (tripId: number) => getStorage().getBudgets(tripId),
+  getBudget: (id: number) => getStorage().getBudget(id),
+  getBudgetByTrip: (tripId: number) => getStorage().getBudgetByTrip(tripId),
+  createBudget: (budget: InsertBudget) => getStorage().createBudget(budget),
+  updateBudget: (id: number, budget: Partial<Budget>) => getStorage().updateBudget(id, budget),
+  deleteBudget: (id: number) => getStorage().deleteBudget(id),
+  
+  getExpenses: (tripId: number) => getStorage().getExpenses(tripId),
+  getExpensesByBudget: (budgetId: number) => getStorage().getExpensesByBudget(budgetId),
+  getExpense: (id: number) => getStorage().getExpense(id),
+  createExpense: (expense: InsertExpense) => getStorage().createExpense(expense),
+  updateExpense: (id: number, expense: Partial<Expense>) => getStorage().updateExpense(id, expense),
+  deleteExpense: (id: number) => getStorage().deleteExpense(id),
+  
+  getCurrencyRate: (baseCurrency: string, targetCurrency: string) => getStorage().getCurrencyRate(baseCurrency, targetCurrency),
+  createOrUpdateCurrencyRate: (rate: InsertCurrencyRate) => getStorage().createOrUpdateCurrencyRate(rate),
+} as IStorage;

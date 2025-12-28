@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Star, MapPin, Camera, ExternalLink, Phone, Wifi, Car, Utensils } from 'lucide-react';
+import { Star, MapPin, Camera, Wifi, Car, Utensils } from 'lucide-react';
 import type { Hotel } from '@shared/schema';
 
 interface HotelCardProps {
@@ -27,10 +27,10 @@ export function HotelCard({ hotel, onViewDetails, onView360 }: HotelCardProps) {
 
   return (
     <Card className="overflow-hidden hover:shadow-lg transition-shadow">
-      {hotel.imageUrls && hotel.imageUrls.length > 0 && (
+      {Array.isArray(hotel.imageUrls) && hotel.imageUrls.length > 0 ? (
         <div className="aspect-video relative overflow-hidden">
           <img
-            src={Array.isArray(hotel.imageUrls) ? hotel.imageUrls[0] : hotel.imageUrls}
+            src={(hotel.imageUrls[0] as string) ?? undefined}
             alt={hotel.name}
             className="w-full h-full object-cover"
           />
@@ -46,7 +46,7 @@ export function HotelCard({ hotel, onViewDetails, onView360 }: HotelCardProps) {
             </Button>
           )}
         </div>
-      )}
+      ) : null}
 
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between">
@@ -72,7 +72,7 @@ export function HotelCard({ hotel, onViewDetails, onView360 }: HotelCardProps) {
           </p>
         )}
 
-        {hotel.amenities && Array.isArray(hotel.amenities) && hotel.amenities.length > 0 && (
+        {Array.isArray(hotel.amenities) && hotel.amenities.length > 0 ? (
           <div className="flex flex-wrap gap-1">
             {hotel.amenities.slice(0, 4).map((amenity) => {
               const IconComponent = getAmenityIcon(amenity);
@@ -89,7 +89,7 @@ export function HotelCard({ hotel, onViewDetails, onView360 }: HotelCardProps) {
               </Badge>
             )}
           </div>
-        )}
+        ) : null}
 
         {hotel.pricePerNight && (
           <div className="flex items-center justify-between">
@@ -109,26 +109,6 @@ export function HotelCard({ hotel, onViewDetails, onView360 }: HotelCardProps) {
           >
             View Details
           </Button>
-          
-          {hotel.website && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => window.open(hotel.website, '_blank')}
-            >
-              <ExternalLink className="w-4 h-4" />
-            </Button>
-          )}
-
-          {hotel.phone && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => window.open(`tel:${hotel.phone}`, '_self')}
-            >
-              <Phone className="w-4 h-4" />
-            </Button>
-          )}
         </div>
       </CardContent>
     </Card>

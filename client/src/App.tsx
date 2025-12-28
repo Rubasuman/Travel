@@ -13,7 +13,7 @@ import DestinationDetails from "@/pages/destination-details";
 import { BudgetPage } from "@/pages/budget";
 import Gallery from "@/pages/gallery";
 import Notifications from "@/pages/notifications";
-import FirebaseTest from "@/pages/firebase-test";
+import ProfilePage from "@/pages/profile";
 import ProtectedRoute from "@/components/auth/protected-route";
 import NotFound from "@/pages/not-found";
 
@@ -61,11 +61,12 @@ function Router() {
           <Notifications />
         </ProtectedRoute>
       )} />
-      <Route path="/firebase-test" component={() => (
+      <Route path="/profile" component={() => (
         <ProtectedRoute>
-          <FirebaseTest />
+          <ProfilePage />
         </ProtectedRoute>
       )} />
+ 
       <Route component={NotFound} />
     </Switch>
   );

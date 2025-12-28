@@ -52,10 +52,7 @@ export function AddReviewForm({ userId, hotelId, placeId, onSuccess }: AddReview
   });
 
   const createReviewMutation = useMutation({
-    mutationFn: (data: InsertReview) => apiRequest('/api/reviews', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
+  mutationFn: (data: InsertReview) => apiRequest('POST', '/api/reviews', data),
     onSuccess: () => {
       toast({
         title: 'Review submitted',
@@ -137,10 +134,14 @@ export function AddReviewForm({ userId, hotelId, placeId, onSuccess }: AddReview
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Review Title (Optional)</FormLabel>
-                  <FormControl>
+                    <FormControl>
                     <Input
                       placeholder="Summarize your experience..."
-                      {...field}
+                      onChange={field.onChange}
+                      onBlur={field.onBlur}
+                      value={(field.value as any) ?? undefined}
+                      name={field.name}
+                      ref={field.ref}
                     />
                   </FormControl>
                   <FormMessage />
@@ -158,7 +159,11 @@ export function AddReviewForm({ userId, hotelId, placeId, onSuccess }: AddReview
                     <Textarea
                       placeholder="Share your experience, what you liked, and any tips for other travelers..."
                       className="min-h-[100px]"
-                      {...field}
+                      onChange={field.onChange}
+                      onBlur={field.onBlur}
+                      value={(field.value as any) ?? undefined}
+                      name={field.name}
+                      ref={field.ref}
                     />
                   </FormControl>
                   <FormMessage />
@@ -177,7 +182,11 @@ export function AddReviewForm({ userId, hotelId, placeId, onSuccess }: AddReview
                       <Camera className="w-4 h-4 text-muted-foreground" />
                       <Input
                         placeholder="https://example.com/360-tour"
-                        {...field}
+                        onChange={field.onChange}
+                        onBlur={field.onBlur}
+                        value={(field.value as any) ?? undefined}
+                        name={field.name}
+                        ref={field.ref}
                       />
                     </div>
                   </FormControl>
